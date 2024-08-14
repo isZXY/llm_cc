@@ -1,6 +1,7 @@
 from transformers import AutoModelForSequenceClassification,LlamaForSequenceClassification
 from transformers import AutoTokenizer
 from transformers import TrainingArguments
+from peft import PeftModel
 from torch import nn
 from datasets import load_dataset
 from datasets import Dataset
@@ -17,15 +18,15 @@ from transformers import LlamaForCausalLM, LlamaTokenizer
 from peft import LoraConfig, get_peft_model,TaskType
 import torch
 
+# 设置设备
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # 0. set model info
-model_name = "/home/wuduo/xuanyu/llmcc/llama-7b"
-# model_name = "distilbert/distilbert-base-uncased"
+model_name = "./llama-7b"
 
 # 1. load dataset
 ## 1.1 load from exp_pool
-exp_pool = pickle.load(open('/home/wuduo/xuanyu/llmcc/exp_pool_sage_classification.pkl', 'rb'))
+exp_pool = pickle.load(open('./exp_pool_sage_classification.pkl', 'rb'))
 features = [feature.tolist() for feature in exp_pool.features]
 features_as_strings = [' '.join(map(str, feature)) for feature in features]
 id2label = {0: "vegas", 1: "htcp",2:"westwood",3:"bbr",4:"cubic",5:"reno",6:"bic"}
@@ -35,9 +36,8 @@ result_dict = {
     "features":features_as_strings,
     "label": labels_as_ids,
 }
-dataset= Dataset.from_dict(result_dict)
+dataset = Dataset.from_dict(result_dict)
 dataset = dataset.train_test_split(test_size=0.2, seed=42)
-
 
 ## 1.2 tokenize
 tokenizer = LlamaTokenizer.from_pretrained(model_name)
@@ -60,65 +60,29 @@ def compute_metrics(eval_pred):
     return accuracy.compute(predictions=predictions, references=labels)
 print('load evaluate func done')
 
-# 3. train
-## 3.1 load model 
-model = LlamaForSequenceClassification.from_pretrained(model_name,num_labels=7, id2label=id2label, label2id=label2id)
+# 3. Load model from checkpoint for inference
+model = LlamaForSequenceClassification.from_pretrained("llama-7b", num_labels=7, id2label=id2label, label2id=label2id)
 # Adjust model embeddings if tokenizer size changed
 if len(tokenizer) != model.config.vocab_size:
     model.resize_token_embeddings(len(tokenizer))
 
-
-## 3.1.1 lora config
-lora_config = LoraConfig(
-    r=8,
-    lora_alpha=32,
-    target_modules=["q_proj", "v_proj"],
-    lora_dropout=0.1,
-    bias="none",
-    inference_mode=False,
-    task_type=TaskType.SEQ_CLS,
-)
-
-# Apply LoRA to the model
-model = get_peft_model(model, lora_config)
+# Load the LoRA weights
+model = PeftModel.from_pretrained(model, "path/to/save/folder/checkpoint-32210")
 model.to(device)
 
-## 3.2 set training arguments
-training_args = TrainingArguments(
-    output_dir="path/to/save/folder/",
-    learning_rate=2e-5,
-    per_device_train_batch_size=1,
-    per_device_eval_batch_size=1,
-    num_train_epochs=10,
-    weight_decay=0.01,
-    eval_strategy="epoch",
-    save_strategy="epoch",
-    load_best_model_at_end=True,
-)
-print('set training arguments done')
+# 3. Predict
+test_dataset = dataset["test"]
+inputs = tokenizer(test_dataset["features"], return_tensors="pt", padding=True, truncation=True, max_length=512)
+inputs = {key: value.to(device) for key, value in inputs.items()}
 
-## 3.3 set trainer class
-# trainer = Trainer(
-#     model=model,
-#     args=training_args,
-#     train_dataset=dataset["train"],
-#     eval_dataset=dataset["test"],
-#     tokenizer=tokenizer,
-#     data_collator=data_collator,
-#     compute_metrics=compute_metrics,
-# ) 
-# print('set trainer class done')
+with torch.no_grad():
+    outputs = model(**inputs)
+    logits = outputs.logits
+    predictions = torch.argmax(logits, dim=-1).cpu().numpy()
+    print(predictions)
 
-# 4. start training
-# trainer.train()
+# 4. Compute accuracy
+from sklearn.metrics import accuracy_score
 
-# model.save_pretrained("output_dir")
-# 5. predict
-predictions = trainer.predict(dataset["test"])
-preds = np.argmax(predictions.predictions, axis=1)
-print(preds)
-accuracy_score = compute_metrics((predictions.predictions, dataset["test"]["label"]))
-print("Test Accuracy:", accuracy_score)
-
-print("Detailed Test Results:")
-print(predictions.metrics)
+accuracy = accuracy_score(test_dataset["label"], predictions)
+print("Test Accuracy:", accuracy)

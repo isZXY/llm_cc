@@ -20,12 +20,12 @@ import torch
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # 0. set model info
-model_name = "/home/wuduo/xuanyu/llmcc/llama-7b"
+model_name = "./llama-7b"
 # model_name = "distilbert/distilbert-base-uncased"
 
 # 1. load dataset
 ## 1.1 load from exp_pool
-exp_pool = pickle.load(open('/home/wuduo/xuanyu/llmcc/exp_pool_sage_classification.pkl', 'rb'))
+exp_pool = pickle.load(open('./exp_pool_sage_classification.pkl', 'rb'))
 features = [feature.tolist() for feature in exp_pool.features]
 features_as_strings = [' '.join(map(str, feature)) for feature in features]
 id2label = {0: "vegas", 1: "htcp",2:"westwood",3:"bbr",4:"cubic",5:"reno",6:"bic"}

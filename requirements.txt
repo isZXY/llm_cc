@@ -3,3 +3,6 @@ peft
 datasets
 evaluate
 typing
+SentencePiece
+protobuf
+scikit-learn
