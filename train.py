@@ -30,7 +30,7 @@ features = [feature.tolist() for feature in exp_pool.features]
 features_as_strings = [' '.join(map(str, feature)) for feature in features]
 id2label = {0: "vegas", 1: "htcp",2:"westwood",3:"bbr",4:"cubic",5:"reno",6:"bic"}
 label2id = {"vegas": 0, "htcp": 1,"westwood":2,"bbr":3,"cubic":4,"reno":5,"bic":6}
-labels_as_ids = [label2id[label] for label in  exp_pool.labels]
+labels_as_ids = [label2id[label] for label in exp_pool.labels]
 result_dict = {
     "features":features_as_strings,
     "label": labels_as_ids,
@@ -70,8 +70,8 @@ if len(tokenizer) != model.config.vocab_size:
 
 ## 3.1.1 lora config
 lora_config = LoraConfig(
-    r=8,
-    lora_alpha=32,
+    r=8, # rank
+    lora_alpha=32, # 控制低秩适应矩阵的影响力
     target_modules=["q_proj", "v_proj"],
     lora_dropout=0.1,
     bias="none",
