@@ -66,7 +66,7 @@ if len(tokenizer) != model.config.vocab_size:
 model.config.pad_token_id = tokenizer.pad_token_id
 
 
-lora_model = PeftModel.from_pretrained(model, "/home/wuduo/xuanyu/llmcc/output_dir")
+lora_model = PeftModel.from_pretrained(model, "./output_dir")
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
