@@ -1,0 +1,12 @@
+/llama-7b/
+/metrics/
+__pycache__
+/output_dir/
+/path/
+/results/
+/datasets/CC/
+/datasets/*.csv
+/datasets/*.pkl
+/*.csv
+/logs/
+/train_checkpoints/

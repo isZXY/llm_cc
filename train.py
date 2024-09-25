@@ -2,7 +2,9 @@ import torch
 from torch import nn
 import numpy as np
 import pickle
+import os
 from exp_pool import DatasetPool
+from torch.utils.tensorboard import SummaryWriter
 
 import evaluate
 from datasets import Dataset
@@ -14,9 +16,11 @@ from peft import LoraConfig, get_peft_model, TaskType
 
 
 
-# 0. set device, model path
+# 0. set device, model path,init Tensorboard
+os.environ["CUDA_VISIBLE_DEVICES"] = '2'
 device = torch.device("cuda")
 model_name = "./llama-7b"
+boardwriter = SummaryWriter(log_dir='logs')
 # model_name = "distilbert/distilbert-base-uncased"
 
 # 1. load dataset
@@ -30,12 +34,11 @@ result_dict = {
     "label": labels_as_ids,
 }
 dataset= Dataset.from_dict(result_dict)
-train_val_test_split = dataset.train_test_split(test_size=0.4, seed=42)  # 40% (val+test)
-train_val_split = train_val_test_split['train'].train_test_split(test_size=0.5, seed=42)  # 50% val, 50% test
-dataset_train = train_val_split['train']
-dataset_val = train_val_split['test']
-dataset_test = train_val_test_split['test']
-
+train_val_test_split = dataset.train_test_split(test_size=0.4, seed=42)  # 60% train, 40% (val+test)
+valid_test_split = train_val_test_split['test'].train_test_split(test_size=0.5, seed=42)  # 50% val, 50% test
+dataset_train = train_val_test_split['train']
+dataset_val = valid_test_split['train']
+dataset_test = valid_test_split['test']
 
 
 ## 1.2 tokenize dataset , add padding token, collate padding
@@ -43,11 +46,20 @@ tokenizer = LlamaTokenizer.from_pretrained(model_name)
 if tokenizer.pad_token is None:
     tokenizer.add_special_tokens({'pad_token': '[PAD]'})
 
+# 定义 tokenize 函数
 def tokenize_dataset(dataset):
     return tokenizer(dataset["features"], padding="max_length", truncation=True, max_length=1024)
 
-dataset = dataset.map(tokenize_dataset, batched=True)
+# dataset = dataset.map(tokenize_dataset, batched=True)
+# data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
+# print('load dataset&tokenize done')
+# 对每个数据集进行 tokenization
+train_dataset = dataset_train.map(tokenize_dataset, batched=True)
+val_dataset = dataset_val.map(tokenize_dataset, batched=True)
+test_dataset = dataset_test.map(tokenize_dataset, batched=True)
 data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
+# train_dataset = dataset['train']
+# vald_dataset = dataset['test']
 print('load dataset&tokenize done')
 
 # 2. set training Arug: load evaluate func, def loss func
@@ -61,17 +73,48 @@ print('load evaluate func done')
 
 ## 2.2 loss func
 class CustomTrainer(Trainer):
-    # :TODO
-    def compute_loss(self, model, inputs, return_outputs=False):
-        labels = inputs.pop("labels")
-        # forward pass
-        outputs = model(**inputs)
-        logits = outputs.get("logits")
-        # compute custom loss (suppose one has 3 labels with different weights)
-        loss_fct = nn.CrossEntropyLoss(weight=torch.tensor([1.0, 2.0, 3.0], device=model.device))
-        loss = loss_fct(logits.view(-1, self.model.config.num_labels), labels.view(-1))
-        return (loss, outputs) if return_outputs else loss
+    def training_step(self, model, inputs):
+        """
+        Perform a training step on a batch of inputs.
 
+        Subclass and override to inject custom behavior.
+
+        Args:
+            model (`nn.Module`):
+                The model to train.
+            inputs (`Dict[str, Union[torch.Tensor, Any]]`):
+                The inputs and targets of the model.
+
+                The dictionary will be unpacked before being fed to the model. Most models expect the targets under the
+                argument `labels`. Check your model's documentation for all accepted arguments.
+
+        Return:
+            `torch.Tensor`: The tensor with training loss on this batch.
+        """
+        model.train()
+        inputs = self._prepare_inputs(inputs)
+        loss = self.compute_loss(model, inputs)
+        loss.backward()
+        boardwriter.add_scalar('Loss/train', loss.item(), self.state.global_step)
+        # for name, param in model.named_parameters():
+        #     if param.requires_grad:
+        #         if param.grad is not None:
+        #             print("{}, gradient: {}".format(name, param.grad.mean()))
+        #         else:
+        #             print("{} has not gradient".format(name))
+
+        return loss.detach()
+
+    # def compute_loss(self, model, inputs, return_outputs=False):
+    #     labels = inputs.pop("labels")
+    #     # forward pass
+    #     outputs = model(**inputs)
+    #     logits = outputs.get("logits")
+    #     # compute custom loss (suppose one has 3 labels with different weights)
+    #     loss_fct = nn.CrossEntropyLoss()
+    #     loss = loss_fct(logits.view(-1, self.model.config.num_labels), labels.view(-1))
+    #     boardwriter.add_scalar('Loss/train', loss.item(), self.state.global_step)
+    #     return (loss, outputs) if return_outputs else loss 
 
 # 3. model loading
 ## 3.1 load model 
@@ -99,7 +142,8 @@ model.to(device)
 # 4. train
 ## 4.1 set training arguments
 training_args = TrainingArguments(
-    output_dir="path/to/save/folder/",
+    output_dir="./train_checkpoints/",
+    save_steps=5000, 
     learning_rate=2e-5,
     per_device_train_batch_size=1,
     per_device_eval_batch_size=1,
@@ -108,15 +152,16 @@ training_args = TrainingArguments(
     eval_strategy="epoch",
     save_strategy="epoch",
     load_best_model_at_end=True,
+    
 )
 print('set training arguments done')
 
 ## 4.2 set trainer class
-trainer = Trainer(
+trainer = CustomTrainer(
     model=model,
     args=training_args,
-    train_dataset=dataset_train,
-    eval_dataset=dataset_val,
+    train_dataset=train_dataset,
+    eval_dataset=val_dataset,
     tokenizer=tokenizer,
     data_collator=data_collator,
     compute_metrics=compute_metrics,
@@ -124,10 +169,10 @@ trainer = Trainer(
 print('set trainer class done')
 
 ## 4.3 start training
-trainer.train()
+trainer.train(resume_from_checkpoint=False)
 
 
-## 4.4 save checkpoint? - :TODO
+## 4.4 save trained models
 model.save_pretrained("output_dir")
 
 
