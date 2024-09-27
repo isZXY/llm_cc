@@ -2,7 +2,7 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 
 from dataset_loader import DatasetLoader
-from dataset_tokenizer import DatasetEmbedding
+from dataset_input_embedding import DatasetEmbedding
 from pretrained_model import PretrainedLanguageModel
 
 if __name__ == "__main__":
@@ -18,6 +18,7 @@ if __name__ == "__main__":
     # 2. Load Model,Tokenizer
     pretrained_llm = PretrainedLanguageModel(model_name='llama',model_path=plm_path,device=device)
 
-    # 3. Tokenize & get Embedding
-    
+    # 3. Tokenize &  Embedding
+    embedder = DatasetEmbedding(pretrained_llm)
+
     # 4. train(forward & backward)

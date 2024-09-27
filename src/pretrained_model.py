@@ -3,6 +3,7 @@ from transformers import LlamaModel
 
 class PretrainedLanguageModel:
     def __init__(self,model_name,model_path,device):
+        self.device = device
         if model_name is "llama":
             # Load LlamaTokenizer 
             self.tokenizer = LlamaTokenizer.from_pretrained(model_path)
@@ -16,7 +17,7 @@ class PretrainedLanguageModel:
                     local_files_only=True,
                     config=self.llama_config,
                 )
-            self.llm_model.to_device(device)
+            self.llm_model.to_device(self.device)
 
         else:
             print("Unsupported model. More pretrained model support is ongoing...")
