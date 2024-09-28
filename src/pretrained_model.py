@@ -22,9 +22,5 @@ class PretrainedLanguageModel:
         else:
             print("Unsupported model. More pretrained model support is ongoing...")
 
+        return self.tokenizer, self.llm_model
     
-    def tokenizer(self):
-        return self.tokenizer
-    
-    def llm_model(self):
-        return self.llm_model
