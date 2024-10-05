@@ -48,11 +48,11 @@ class _ReprogrammingLayer(nn.Module):
 
 
 class _TokenEmbedding(nn.Module):
-    def __init__(self, c_in, d_model):
+    def __init__(self, c_in, d_model,device):
         super(_TokenEmbedding, self).__init__()
         padding = 1 if torch.__version__ >= '1.5.0' else 2
         self.tokenConv = nn.Conv1d(in_channels=c_in, out_channels=d_model,
-                                   kernel_size=3, padding=padding, padding_mode='circular', bias=False)
+                                   kernel_size=3, padding=padding, padding_mode='circular', bias=False).to(device)
         for m in self.modules():
             if isinstance(m, nn.Conv1d):
                 nn.init.kaiming_normal_(
@@ -79,7 +79,7 @@ class _ReplicationPad1d(nn.Module):
 
 
 class _PatchEmbedding(nn.Module):
-    def __init__(self, d_model, patch_len, stride, dropout): # patch模型的隐藏层维度,patch 长度 Lp, 步幅
+    def __init__(self, d_model, patch_len, stride, dropout,device): # patch模型的隐藏层维度,patch 长度 Lp, 步幅
         super(_PatchEmbedding, self).__init__()
 
         # Patching
@@ -88,7 +88,7 @@ class _PatchEmbedding(nn.Module):
         self.padding_patch_layer = _ReplicationPad1d((0, stride))
 
         # Backbone, Input encoding: projection of feature vectors onto a d-dim vector space
-        self.value_embedding = _TokenEmbedding(patch_len, d_model) # (Lp--linear--> dm)
+        self.value_embedding = _TokenEmbedding(patch_len, d_model,device) # (Lp--linear--> dm)
 
         # Positional embedding
         # self.position_embedding = PositionalEmbedding(d_model)
@@ -198,7 +198,7 @@ class DatasetEmbedding(nn.Module):
         self.patch_len = 16 # patch 长度
         self.stride = 8 # 步幅
         self.dropout_rate = .1 # dropout rate
-        self.patch_embedding = _PatchEmbedding(self.d_model, self.patch_len, self.stride, self.dropout_rate)
+        self.patch_embedding = _PatchEmbedding(self.d_model, self.patch_len, self.stride, self.dropout_rate,self.device)
 
         # Normalize layer
         self.feature_dimension = 7
@@ -225,7 +225,7 @@ class DatasetEmbedding(nn.Module):
 
     def __natural_language_embedding(self,prompt):
         prompt_ids = self.tokenizer(prompt, return_tensors="pt", padding=True, truncation=True, max_length=2048).input_ids # prompt tokenize
-        prompt_embeddings = self.llm_model.get_input_embeddings()(prompt.to(self.device))  #将 prompt Embedding为高维向量
+        prompt_embeddings = self.llm_model.get_input_embeddings()(prompt_ids.to(self.device))  #将 prompt Embedding为高维向量
 
         return prompt_embeddings
     

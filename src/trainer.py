@@ -18,7 +18,7 @@ class Trainer:
 
         self.boardwriter = boardwriter
         trained_parameters = []
-        for p in self.odel.parameters():
+        for p in self.model.parameters():
             if p.requires_grad is True:
                 trained_parameters.append(p)
         self.optimizer = optim.Adam(trained_parameters, lr=learning_rate) 

@@ -137,8 +137,9 @@ if __name__ == '__main__':
             top_50_rows = df_ts.head(50)
             data_array = top_50_rows.values
             ts_tensor_data = torch.tensor(data_array, dtype=torch.float32) 
-
-
+            if ts_tensor_data.shape != (50, 77):
+                print("{}_{}_{}_{}_{}_cwnd.csv shape error".format(row['Schemes'],name[3],name[0],name[1],tt))
+                continue
 
             prompt_ = standard_prompt_filled(row['sr_max'],row['sr_avg'],row['sr_min'],row['rtt_max'],row['rtt_avg'],row['rtt_min'],row['rttvar_max'],row['rttvar_avg'],row['rttvar_min'],row['loss_max'],row['loss_avg'],row['loss_min'])
             dataset_pool.add(prompt_,ts_tensor_data,best_scheme)

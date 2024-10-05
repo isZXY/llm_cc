@@ -4,7 +4,7 @@ from transformers import LlamaModel
 class PretrainedLanguageModel:
     def __init__(self,model_name,model_path,device):
         self.device = device
-        if model_name is "llama":
+        if model_name == "llama":
             # Load LlamaTokenizer 
             self.tokenizer = LlamaTokenizer.from_pretrained(model_path)
             if self.tokenizer.pad_token is None:
@@ -15,12 +15,12 @@ class PretrainedLanguageModel:
                     model_path,
                     trust_remote_code=True,
                     local_files_only=True,
-                    config=self.llama_config,
                 )
-            self.llm_model.to_device(self.device)
+            self.llm_model.to(self.device)
 
         else:
             print("Unsupported model. More pretrained model support is ongoing...")
 
+        
+    def get_model(self):
         return self.tokenizer, self.llm_model
-    

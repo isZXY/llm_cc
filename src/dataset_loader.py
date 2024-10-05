@@ -1,32 +1,6 @@
 import pickle
 from torch.utils.data import Dataset, random_split, DataLoader
 
-class _DatasetPool:
-    '''
-    The experience pool used to save & load data.
-
-    Data Structure:
-        Pairs of [Prompts, Probed Time Series, Labels].
-        Prompts: string, Natural Language that describe the tasks.
-        Probed Time Series: ndarray, The Multi-dimension time series probed during startup.
-        Labels: string, The Best Algos's name. "Best" is evaluated during dataset collection.
-    '''
-    def __init__(self):
-        self.prompts = []
-        self.probed_ts = []
-        self.labels = []
-
-    def add(self, prompts,probed_ts,label):
-        self.prompts.append(prompts)
-        self.probed_ts.append(probed_ts)
-        self.labels.append(label)
-
-
-    def __len__(self):
-        return len(self.labels)
-
-
-
 class _CCDataset(Dataset):
     def __init__(self,dataset_pool_path):
         self.dataset_pool = pickle.load(open(dataset_pool_path, 'rb'))
@@ -40,7 +14,7 @@ class _CCDataset(Dataset):
         self.label_list = labels_as_ids
 
 
-    def __Len__(self):
+    def __len__(self):
         return len(self.label_list)
     
     def __getitem__(self,idx):
@@ -55,16 +29,25 @@ class DatasetLoader:
     '''
     Load Dataset and Return dataloader.
     '''
-    def __init__(self, dataset_pool_path,batch_size =2):
-        dataset = _CCDataset(dataset_pool_path)
-        train_size, val_size, test_size = int(0.6 * len(dataset)), int(0.2 * len(dataset)), len(dataset) - int(0.6 * len(dataset)) - int(0.2 * len(dataset))
-        train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size])
+    def __init__(self, dataset_pool_path,batch_size = 2,train_prop = 0.6,val_prop = 0.2,test_prop = 0.2):
+        self.dataset = _CCDataset(dataset_pool_path)
+        self.batch_size = batch_size
+        self.train_prop = train_prop
+        self.val_prop = val_prop
+        self.test_prop = test_prop
 
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+        assert self.train_prop + self.val_prop + self.test_prop == 1
+
+
+    def load_dataset(self):
+        train_size, val_size, test_size = int(self.train_prop * len(self.dataset)), int(self.val_prop * len(self.dataset)), len(self.dataset) - int(self.train_prop * len(self.dataset)) - int(self.val_prop * len(self.dataset))
+        train_dataset, val_dataset, test_dataset = random_split(self.dataset, [train_size, val_size, test_size])
+
+        train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
+        val_loader = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False)
+        test_loader = DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False)
         return train_loader,val_loader,test_loader
-            
+    
 # class DatasetLoader:
 #     '''
 #     Load and Return dataset.
