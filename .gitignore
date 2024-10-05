@@ -4,7 +4,10 @@ __pycache__
 /output_dir/
 /path/
 /results/
-/datasets/CC/
+/datasets/CC/csv
+/datasets/CC/txt
+/datasets/CC/*.csv
+/datasets/CC/*.pkl
 /datasets/*.csv
 /datasets/*.pkl
 /*.csv

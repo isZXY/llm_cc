@@ -8,7 +8,7 @@ from trainer import Trainer
 if __name__ == "__main__":
 
     '''
-    还差:checkpoint设置,参数冻结的确认,ts input的对齐
+    还差:ts input的对齐
     '''
 
     # 0. set device, model path,init Tensorboard
@@ -23,7 +23,7 @@ if __name__ == "__main__":
     # 2. Load Model
     model = Model(plm_path,device,num_classes)
     
-
+    
     # 3. Set train parameters
     learning_rate = .01
     train_epochs = 1
@@ -34,4 +34,4 @@ if __name__ == "__main__":
     
     trainer.train()
 
-    # 迭代加载数据  
+

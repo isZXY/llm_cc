@@ -1,3 +1,5 @@
+import os
+import torch
 import torch.nn as nn
 from dataset_input_embedding import DatasetEmbedding
 from pretrained_model import PretrainedLanguageModel
@@ -31,10 +33,15 @@ class Model(nn.Module):
         self.input_embedding_layer = DatasetEmbedding(self.tokenizer, self.llm_model,self.device)
         self.output_projection = _CategoryProjection(self.llm_model.config.hidden_size,num_classes)
 
+
+        self.modules_except_llm = nn.ModuleList([
+            self.input_embedding_layer, self.output_projection
+        ])
+
     def __set_peft_model(self,rank):
         # 定义 LoRA 的配置
         peft_config = LoraConfig(
-            task_type=TaskType.SEQ_CLASSIFICATION 
+            task_type=TaskType.SEQ_CLASSIFICATION, 
             r=16,  # rank 参数，决定矩阵分解的秩
             lora_alpha=32,  # lora 的 scaling 参数
             lora_dropout=0.05  # dropout 概率
@@ -43,7 +50,18 @@ class Model(nn.Module):
         peft_model = get_peft_model(self.llm_model, peft_config)
         return peft_model
 
+    def save_model(self,checkpoint_path):
+        # save lora weights
+        self.llm_model.save_pretrained(checkpoint_path)
+        # save other modules except plm
+        torch.save(self.modules_except_llm.state_dict(), os.path.join(checkpoint_path, 'modules_except_plm.pth'))
 
+
+    def load_model(self,checkpoint_path):
+        self.llm_model.load_adapter(checkpoint_path,adapter_name='deafult')
+        self.modules_except_llm.load_state_dict(torch.load(os.path.join(checkpoint_path, 'modules_except_plm.pth')))
+    
+    
     def forward(self, batch_prompt, batch_ts):
         batch_ts.float().to(self.device)
         input_embedding = self.input_embedding_layer(batch_prompt,batch_ts)

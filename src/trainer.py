@@ -1,6 +1,7 @@
 from torch import nn
 import torch.optim as optim
 import torch
+import os 
 
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -42,6 +43,9 @@ class Trainer:
 
                 loss.backward()
                 self.optimizer.step()
+                
+                if self.global_step % 5000 ==0:
+                    self.model.save_model(os.path.join(self.checkpoint_save_path,'-{}'.format(self.global_step)))
         
             # Validate
             self.model.eval()
@@ -52,3 +56,5 @@ class Trainer:
                     loss = self.loss_fcn(logits, batch_label)
                     val_loss += loss.item()
                 self.boardwriter.add_scalar('Epoch Loss/Validation', val_loss / len(self.val_loader), epoch)
+            
+            self.model.save_model(os.path.join(self.checkpoint_save_path,'-{}-epoch{}'.format(self.global_step,epoch)))
