@@ -7,10 +7,10 @@ from peft import get_peft_model, LoraConfig
 
 
 class _CategoryProjection(nn.Module):
-    def __init__(self, hidden_size, num_classes):
+    def __init__(self, hidden_size, num_classes,device):
         super(_CategoryProjection, self).__init__()
         self.classification_head = nn.Linear(
-            hidden_size, num_classes)  # 线性层映射到分类标签
+            hidden_size, num_classes).to(device)  # 线性层映射到分类标签
         # self.softmax = nn.Softmax(dim=-1)  # 用于生成分类概率
 
     def forward(self, llm_last_hidden_state):
@@ -39,7 +39,7 @@ class Model(nn.Module):
         self.input_embedding_layer = DatasetEmbedding(
             self.tokenizer, self.llm_model, self.device)
         self.output_projection = _CategoryProjection(
-            self.llm_model.config.hidden_size, num_classes)
+            self.llm_model.config.hidden_size, num_classes,self.device)
 
         self.modules_except_llm = nn.ModuleList([
             self.input_embedding_layer.vocab_mapping_to_prototype_layer, self.input_embedding_layer.patch_embedding, self.input_embedding_layer.normalize_layers, self.input_embedding_layer.reprogramming_layer, self.output_projection

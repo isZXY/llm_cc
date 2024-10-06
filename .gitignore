@@ -14,3 +14,4 @@ __pycache__
 /logs/
 /train_checkpoints/
 /src/logs/
+/checkpoints/

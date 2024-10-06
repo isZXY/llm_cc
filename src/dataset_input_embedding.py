@@ -4,17 +4,17 @@ from math import sqrt
 
 
 class _ReprogrammingLayer(nn.Module):
-    def __init__(self, d_model, n_heads, d_keys=None, d_llm=None, attention_dropout=0.1):
+    def __init__(self, device, d_model, n_heads, d_keys=None, d_llm=None, attention_dropout=0.1):
         # self.reprogramming_layer = ReprogrammingLayer(configs.d_model, configs.n_heads, self.d_ff, self.d_llm)
         # patch模型的隐藏层维度 16; n_heads num of heads 8; d_ff前馈神经网络的维度 32 # d_llm LLM model dimension 7b 4096
         super(_ReprogrammingLayer, self).__init__()
 
         d_keys = d_keys or (d_model // n_heads)
 
-        self.query_projection = nn.Linear(d_model, d_keys * n_heads)
-        self.key_projection = nn.Linear(d_llm, d_keys * n_heads)
-        self.value_projection = nn.Linear(d_llm, d_keys * n_heads)
-        self.out_projection = nn.Linear(d_keys * n_heads, d_llm)
+        self.query_projection = nn.Linear(d_model, d_keys * n_heads).to(device)
+        self.key_projection = nn.Linear(d_llm, d_keys * n_heads).to(device)
+        self.value_projection = nn.Linear(d_llm, d_keys * n_heads).to(device)
+        self.out_projection = nn.Linear(d_keys * n_heads, d_llm).to(device)
         self.n_heads = n_heads
         self.dropout = nn.Dropout(attention_dropout)
 
@@ -23,7 +23,7 @@ class _ReprogrammingLayer(nn.Module):
         B, L, _ = target_embedding.shape  # (B * N,num_patches P, d_model dm)
         S, _ = source_embedding.shape
         H = self.n_heads
-
+        
         target_embedding = self.query_projection(
             target_embedding).view(B, L, H, -1)
         source_embedding = self.key_projection(source_embedding).view(S, H, -1)
@@ -207,7 +207,7 @@ class DatasetEmbedding(nn.Module):
         self.vocab_size = self.llm_embeddings_weight.shape[0]  # llm vocab size
         self.maintained_prototype_token_size = 1000
         self.vocab_mapping_to_prototype_layer = nn.Linear(
-            self.vocab_size, self.maintained_prototype_token_size)
+            self.vocab_size, self.maintained_prototype_token_size).to(self.device)
 
         # Patch Embedding
         self.d_model = 16  # patch模型的隐藏层维度
@@ -227,7 +227,7 @@ class DatasetEmbedding(nn.Module):
         self.d_ff = 32  # dimension of fcn
         self.d_llm = 4096  # dimension of llm model,LLama7b:4096; GPT2-small:768; BERT-base:768
         self.reprogramming_layer = _ReprogrammingLayer(
-            self.d_model, self.n_heads, self.d_ff, self.d_llm)
+            self.device, self.d_model, self.n_heads, self.d_ff, self.d_llm)
 
     def forward(self, prompt, ts):
         dataset_concat_embedding = self.dataset_embedding(prompt, ts)

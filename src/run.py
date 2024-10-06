@@ -6,7 +6,7 @@ from dataset_loader import DatasetLoader
 from llmcc_model import Model
 from trainer import Trainer
 
-from DatasetPool import _DatasetPool
+from dataset_pool import _DatasetPool
 
 
 if __name__ == "__main__":
@@ -17,7 +17,7 @@ if __name__ == "__main__":
     os.chdir('/data3/wuduo/xuanyu/llmcc/src')
 
     # 0. set device, model path,init Tensorboard
-    device = torch.device("cpu")
+    device = torch.device("cuda:3")
     plm_path = "../llama-7b"
     boardwriter = SummaryWriter(log_dir='logs')
     num_classes = 7
@@ -37,6 +37,6 @@ if __name__ == "__main__":
 
     # set Trainer and train
     trainer = Trainer(model, boardwriter, train_loader, val_loader,
-                      learning_rate, train_epochs, checkpoint_save_path)
+                      learning_rate, train_epochs, checkpoint_save_path,device)
 
     trainer.train()

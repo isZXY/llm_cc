@@ -8,7 +8,8 @@ from tqdm import tqdm
 
 
 class Trainer:
-    def __init__(self, model, boardwriter, train_loader, val_loader, learning_rate, train_epochs, checkpoint_save_path):
+    def __init__(self, model, boardwriter, train_loader, val_loader, learning_rate, train_epochs, checkpoint_save_path, device):
+        self.device = device
         self.model = model
         self.train_loader = train_loader
         self.val_loader = val_loader
@@ -37,7 +38,7 @@ class Trainer:
                 self.optimizer.zero_grad()
 
                 logits = self.model(batch_prompt, batch_ts).squeeze()
-
+                batch_label = batch_label.to(self.device)
                 loss = self.loss_fcn(logits, batch_label)
                 self.boardwriter.add_scalar(
                     'iter Loss/train', loss.item(), self.global_step)
@@ -54,11 +55,12 @@ class Trainer:
             with torch.no_grad():
                 val_loss = 0.0
                 for batch_prompt, batch_ts, batch_label in tqdm(self.val_loader):
-                    logits = self.model(batch_prompt, batch_ts)
+                    logits = self.model(batch_prompt, batch_ts).squeeze()
+                    batch_label = batch_label.to(self.device)
                     loss = self.loss_fcn(logits, batch_label)
                     val_loss += loss.item()
                 self.boardwriter.add_scalar(
                     'Epoch Loss/Validation', val_loss / len(self.val_loader), epoch)
 
             self.model.save_model(os.path.join(
-                self.checkpoint_save_path, '-{}-epoch{}'.format(self.global_step, epoch)))
+                self.checkpoint_save_path, 'checkpoint-{}-eval-epoch{}'.format(self.global_step, epoch)))
