@@ -12,12 +12,12 @@ from dataset_pool import _DatasetPool
 if __name__ == "__main__":
 
     '''
-    还差:ts input的对齐
+    还差:eval评估
     '''
     os.chdir('/data3/wuduo/xuanyu/llmcc/src')
 
     # 0. set device, model path,init Tensorboard
-    device = torch.device("cuda:3")
+    device = torch.device("cuda:2")
     plm_path = "../llama-7b"
     boardwriter = SummaryWriter(log_dir='logs')
     num_classes = 7
@@ -32,7 +32,7 @@ if __name__ == "__main__":
 
     # 3. Set train parameters
     learning_rate = .01
-    train_epochs = 1
+    train_epochs = 5
     checkpoint_save_path = "../checkpoints"
 
     # set Trainer and train

@@ -46,7 +46,7 @@ class Trainer:
                 loss.backward()
                 self.optimizer.step()
 
-                if self.global_step % 5000 == 0:
+                if self.global_step % 500 == 0:
                     self.model.save_model(os.path.join(
                         self.checkpoint_save_path, 'checkpoint-{}'.format(self.global_step)))
 

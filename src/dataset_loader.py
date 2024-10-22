@@ -47,11 +47,11 @@ class DatasetLoader:
             self.dataset, [train_size, val_size, test_size])
 
         train_loader = DataLoader(
-            train_dataset, batch_size=self.batch_size, shuffle=True)
+            train_dataset, batch_size=self.batch_size, shuffle=True,drop_last=True)
         val_loader = DataLoader(
-            val_dataset, batch_size=self.batch_size, shuffle=False)
+            val_dataset, batch_size=self.batch_size, shuffle=False,drop_last=True)
         test_loader = DataLoader(
-            test_dataset, batch_size=self.batch_size, shuffle=False)
+            test_dataset, batch_size=self.batch_size, shuffle=False,drop_last=True)
         return train_loader, val_loader, test_loader
 
 # class DatasetLoader:
