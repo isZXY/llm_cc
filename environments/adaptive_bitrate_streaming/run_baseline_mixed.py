@@ -259,32 +259,33 @@ def run(args):
     random.seed(args.seed)
 
     with tf.Session() as sess:
-        if model == PENSIEVE:
-            model_path = cfg.baseline_model_paths[args.model]
-            actor = a3c.ActorNetwork(sess, state_dim=[S_INFO ,S_LEN] ,action_dim=A_DIM , bitrate_dim=BITRATE_LEVELS)
-            sess.run(tf.global_variables_initializer())
-            saver = tf.train.Saver()  # save neural net parameters
-            saver.restore(sess, model_path)  # restore neural net parameters
-            print("Testing model restored.")
-        elif model == MPC:
-            combo_dict = {'0': calculate_jump_action_combo(0),
+        # Set Pensieve
+        model_path = cfg.baseline_model_paths['genet']
+        actor = a3c.ActorNetwork(sess, state_dim=[S_INFO ,S_LEN] ,action_dim=A_DIM , bitrate_dim=BITRATE_LEVELS)
+        sess.run(tf.global_variables_initializer())
+        saver = tf.train.Saver()  # save neural net parameters
+        saver.restore(sess, model_path)  # restore neural net parameters
+        print("Testing model restored.")
+            
+        # Set MPC
+        combo_dict = {'0': calculate_jump_action_combo(0),
                           '1': calculate_jump_action_combo(1),
                           '2': calculate_jump_action_combo(2),
                           '3': calculate_jump_action_combo(3),
                           '4': calculate_jump_action_combo(4),
                           '5': calculate_jump_action_combo(5)}
-            size_video_array =[]
-            for bitrate in range(BITRATE_LEVELS):
-                video_size = []
-                with open(video_size_dir + 'video_size_' + str(bitrate)) as f:
-                    for line in f:
-                        video_size.append( int( line.split()[0] ) )
-                size_video_array.append(video_size)
-            size_video_array = np.array(np.squeeze(size_video_array))
-            assert len(VIDEO_BIT_RATE) == BITRATE_LEVELS
-            video_bit_rate = np.array(VIDEO_BIT_RATE)
-            past_errors = []
-            past_bandwidth_ests = []
+        size_video_array =[]
+        for bitrate in range(BITRATE_LEVELS):
+            video_size = []
+            with open(video_size_dir + 'video_size_' + str(bitrate)) as f:
+                for line in f:
+                    video_size.append( int( line.split()[0] ) )
+            size_video_array.append(video_size)
+        size_video_array = np.array(np.squeeze(size_video_array))
+        assert len(VIDEO_BIT_RATE) == BITRATE_LEVELS
+        video_bit_rate = np.array(VIDEO_BIT_RATE)
+        past_errors = []
+        past_bandwidth_ests = []
 
         time_stamp = 0
         last_bit_rate = DEFAULT_QUALITY
@@ -294,14 +295,24 @@ def run(args):
         all_rewards  = []
 
 
-
-        # counter = -1
+        sel_model = 'genet'
         while True:  # serve video forever
-            # counter += 1
-            # if model =='MIXED' or 3:
-            #     if counter % 7 == 0:
-            #         model = random.choice(['PENSIEVE', 'MPC', 'BBA'])
-            #         print("change for {}".format(model))
+            # value = random.choices([0, 1], weights=[0.85, 0.15], k=1)[0]
+            value = random.choices([0, 1])[0]
+            
+            if value == 1:
+                sel_model = random.choice(['genet', 'udr_1', 'udr_2', 'udr_3', 'udr_real', 'mpc', 'bba'])
+
+                if sel_model in  ['genet', 'udr_1', 'udr_2', 'udr_3', 'udr_real']:
+                    model = PENSIEVE
+                    model_path = cfg.baseline_model_paths[sel_model]
+                    saver.restore(sess, model_path)  # restore neural net parameters
+                elif sel_model == 'mpc':
+                    model = MPC
+                elif sel_model == 'bba':
+                    model = BBA
+                
+
             delay, sleep_time, buffer_size, rebuf, \
             video_chunk_size, next_video_chunk_sizes, \
             end_of_video, video_chunk_remain = net_env.get_video_chunk(bit_rate)
@@ -328,7 +339,7 @@ def run(args):
                      video_chunk_size,
                      delay,
                      smoothness,
-                     model_mapping[model],
+                     sel_model,
                      reward])
             
 
@@ -398,7 +409,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # >>> debug <<<
-    args.model = 'udr_real'
+    args.model = 'mixed'
     args.test_trace = 'fcc-test'
     args.video = 'video1'
     args.test_trace_num = 100
