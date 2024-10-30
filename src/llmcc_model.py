@@ -91,7 +91,11 @@ class Model(nn.Module):
         # self.output_projection = _CategoryProjection(
         #     self.llm_model.config.hidden_size, num_classes,self.device)
 
-        self.output_projection = _ExplainableTokenGenerationHead(self.llm_model.config.hidden_size,)
+        self.vocab_size = model.get_vocab_size()
+
+        self.custom_token_size = model.get_custom_token_size()
+
+        self.output_projection = _ExplainableTokenGenerationHead(self.llm_model.config.hidden_size,self.vocab_size,self.custom_token_size,device,max_length=50)
 
         self.modules_except_llm = nn.ModuleList([
             self.input_embedding_layer.vocab_mapping_to_prototype_layer, self.input_embedding_layer.patch_embedding, self.input_embedding_layer.normalize_layers, self.input_embedding_layer.reprogramming_layer, self.output_projection
@@ -126,5 +130,6 @@ class Model(nn.Module):
         # (batch size, sequence length, hidden size)
         llm_last_hidden_state = self.llm_model(
             inputs_embeds=input_embedding).last_hidden_state
-        output_category = self.output_projection(llm_last_hidden_state)
-        return output_category
+        
+        selected_token, generated_sentence = self.output_projection(llm_last_hidden_state)
+        return selected_token, generated_sentence
