@@ -21,6 +21,56 @@ class _CategoryProjection(nn.Module):
         return logits
 
 
+class _ExplainableTokenGenerationHead(nn.Module):
+    def __init__(self, hidden_size, vocab_size, custom_token_size,device,max_length=50):
+        '''
+        :para hidden_size: llm_last_hidden_state size
+        vocab_size: llm vocab size
+        custom_token_size : custom_token_num
+        '''
+        super(_ExplainableTokenGenerationHead, self).__init__()
+
+        # Token Selector, Selector the specific and precise token head 
+        self.token_selector = nn.Linear(hidden_size, custom_token_size).to(device)
+        
+        # Explainable NLP Head
+        self.language_gen_head = nn.Linear(hidden_size, vocab_size).to(device)
+        
+        # limitation of max length
+        self.max_length = max_length
+
+        self.device = device
+
+
+    def forward(self, llm_last_hidden_state, labels=None, explanation_labels=None):
+        cls_token_hidden_state = llm_last_hidden_state[:, -1, :]  # (batch_size, hidden_size)
+        
+        # Token Selector, Selector the specific and precise token head 
+        token_logits = self.token_selector(cls_token_hidden_state)  # (batch_size, custom_token_size)
+        selected_token = torch.argmax(token_logits, dim=-1)  # (batch_size,)
+
+
+        # Explainable NLP Head 
+        generated_tokens = []
+        input_state = llm_last_hidden_state
+        
+        for _ in range(self.max_length):
+            logits = self.language_gen_head(input_state)  # (batch_size, seq_len, vocab_size)
+            next_token = torch.argmax(logits[:, -1, :], dim=-1, keepdim=True)  # (batch_size, 1)
+            generated_tokens.append(next_token)
+            
+            # update input state to autoregressive
+            input_state = torch.cat([input_state, logits[:, -1:, :]], dim=1)
+            
+            # EOS early quit
+            if torch.all(next_token == self.eos_token_id):
+                break
+
+        generated_sentence = torch.cat(generated_tokens, dim=1)  # (batch_size, sentence_length)
+        
+        return selected_token, generated_sentence
+
+
 class Model(nn.Module):
     def __init__(self, plm_path, device, num_classes):
         super(Model, self).__init__()
@@ -38,8 +88,10 @@ class Model(nn.Module):
 
         self.input_embedding_layer = DatasetEmbedding(
             self.tokenizer, self.llm_model, self.device)
-        self.output_projection = _CategoryProjection(
-            self.llm_model.config.hidden_size, num_classes,self.device)
+        # self.output_projection = _CategoryProjection(
+        #     self.llm_model.config.hidden_size, num_classes,self.device)
+
+        self.output_projection = _ExplainableTokenGenerationHead(self.llm_model.config.hidden_size,)
 
         self.modules_except_llm = nn.ModuleList([
             self.input_embedding_layer.vocab_mapping_to_prototype_layer, self.input_embedding_layer.patch_embedding, self.input_embedding_layer.normalize_layers, self.input_embedding_layer.reprogramming_layer, self.output_projection

@@ -10,7 +10,7 @@ import random
 import baseline_special.a3c as a3c
 import baseline_special.env as env
 from numba import jit
-from config import cfg
+from token_config import cfg
 from baseline_special.utils.utils import load_traces
 from baseline_special.utils.constants import (
     REBUF_PENALTY, SMOOTH_PENALTY, DEFAULT_QUALITY, S_INFO, S_LEN, A_DIM, BITRATE_LEVELS, BUFFER_NORM_FACTOR,

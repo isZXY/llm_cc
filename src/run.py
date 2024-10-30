@@ -17,14 +17,14 @@ if __name__ == "__main__":
     os.chdir('/data3/wuduo/xuanyu/llmcc/src')
 
     # 0. set device, model path,init Tensorboard
-    device = torch.device("cuda:2")
+    device = torch.device("cpu")
     plm_path = "../llama-7b"
     boardwriter = SummaryWriter(log_dir='logs')
     num_classes = 7
 
     # 1. load dataset
     dataset_loader = DatasetLoader(
-        '../datasets/dataset_pool.pkl', batch_size=2, train_prop=0.6, val_prop=0.2, test_prop=0.2)
+        '../datasets/dataset_pool_abr.pkl', batch_size=2, train_prop=0.6, val_prop=0.2, test_prop=0.2)
     train_loader, val_loader, test_loader = dataset_loader.load_dataset()
 
     # 2. Load Model

@@ -1,397 +1,182 @@
-import argparse
+# -*- coding: utf-8 -*-
 import os
 import pickle
-import itertools
-import random
+import pandas as pd
 import numpy as np
-import tensorflow as tf
-import baseline_special.a3c as a3c
-import baseline_special.env as env
-from numba import jit
-from config import cfg
-from baseline_special.utils.utils import load_traces
-from baseline_special.utils.constants import (
-    REBUF_PENALTY, SMOOTH_PENALTY, DEFAULT_QUALITY, S_INFO, S_LEN, A_DIM, BITRATE_LEVELS, BUFFER_NORM_FACTOR,
-    M_IN_K, SMOOTH_PENALTY, VIDEO_BIT_RATE, CHUNK_TIL_VIDEO_END_CAP, RAND_RANGE, DEFAULT_QUALITY, TOTAL_VIDEO_CHUNK
-)
-from plm_special.utils.utils import action2bitrate
-from plm_special.data.exp_pool import ExperiencePool
+import csv
+import torch
 
-PENSIEVE = 0
-MPC = 1
-BBA = 2
+class _DatasetPool:
+    '''
+    The experience pool used to save & load data.
 
+    Data Structure:
+        Pairs of [Prompts, Probed Time Series, Labels].
+        Prompts: string, Natural Language that describe the tasks.
+        Probed Time Series: ndarray, The Multi-dimension time series probed during startup.
+        Labels: string, The Best Algos's name. "Best" is evaluated during dataset collection.
+    '''
+    def __init__(self):
+        self.prompts = []
+        self.probed_ts = []
+        self.labels = []
 
-# =========================================================================
-# ====================== Pensieve Special (Start) =========================
-# =========================================================================
-
-def pensieve(actor, state, last_bit_rate):
-    action_prob = actor.predict(np.reshape(state, (1, S_INFO ,S_LEN)))
-    action_cumsum = np.cumsum(action_prob)
-    # Note: we need to discretize the probability into 1 / RAND_RANGE steps,
-    # because there is an intrinsic discrepancy in passing single state and batch states
-    action = (action_cumsum > np.random.randint(1, RAND_RANGE) / float(RAND_RANGE)).argmax()
-    bit_rate = action2bitrate(action, last_bit_rate)
-    return bit_rate
-
-# =========================================================================
-# ======================= Pensieve Special (End) ==========================
-# =========================================================================
+    def add(self, prompts,probed_ts,label):
+        self.prompts.append(prompts)
+        self.probed_ts.append(probed_ts)
+        self.labels.append(label)
 
 
-# =========================================================================
-# ========================= MPC Special (Start) ===========================
-# =========================================================================
-
-CHUNK_COMBO_OPTIONS = np.array([combo for combo in itertools.product(
-                range(6), repeat=5)])
-MPC_FUTURE_CHUNK_COUNT = 5
+    def __len__(self):
+        return len(self.labels)
 
 
-@jit(nopython=True)
-def next_possible_bitrates(br):
-    next_brs = [br - 1 ,br ,br + 1]
-    next_brs = [a for a in next_brs if 0 <= a <= 5]
-    return next_brs
+
+CSV_HEADER = [
+    'time_stamp','bit_rate','buffer_size','rebuffer_time','chunk_size','download_time','smoothness','model','reward'
+]
 
 
-@jit(nopython=True)
-def calculate_jump_action_combo(br):
-    all_combos = CHUNK_COMBO_OPTIONS
-    combos = np.empty((0, 5), np.int64)
-    #combos = np.expand_dims( combos ,axis=0 )
-    for combo in all_combos:
-        br1 = combo[0]
-        if br1 in next_possible_bitrates( br ):
-            br2 = combo[1]
-            if br2 in next_possible_bitrates( br1 ):
-                br3 = combo[2]
-                if br3 in next_possible_bitrates( br2 ):
-                    br4 = combo[3]
-                    if br4 in next_possible_bitrates( br3 ):
-                        br5 = combo[4]
-                        if br5 in next_possible_bitrates( br4 ):
-                            combo = np.expand_dims( combo ,axis=0 )
-                            combos = np.append(combos, combo, axis=0)
-
-    return combos
+def standard_prompt_filled():
+    prompt = (
+        f"<|Task description|>You are tasked with selecting the most appropriate adaptive bitrate algorithm based on the provided network statistics and scenario. Your goal is to select the algorithm that best suits the given network status. The given algorithms are 'genet', 'udr_1', 'udr_2', 'udr_3', 'udr_real', 'mpc', 'bba','mixed'\n"
+        f"<|CSV Head Explanation|>Each feature in the following time series are: time_stamp,bit_rate,buffer_size,rebuffer_time,chunk_size,download_time,smoothness,model,reward\n"
+        # f"<|Network stat|>bit_rate(Kbps): max {sr_max}, average {sr_avg}, min {sr_min}; buffer_size(s): max {rtt_max}, average {rtt_avg}, min {rtt_min}; RTT rebuffer_time(ms): max {rttvar_max}, average {rttvar_avg}, min {rttvar_min}; chunk_size: max {loss_max}, average {loss_avg}, min {loss_min};\n"
+    )
+    return prompt
 
 
-@jit(nopython=True)
-def get_chunk_size(quality, index, size_video_array):
-    if (index < 0 or index > TOTAL_VIDEO_CHUNK):
-        return 0
-    # note that the quality and video labels are inverted (i.e., quality 4 is
-    # highest and this pertains to video1)
-    return size_video_array[quality, index]
+def extract_csv_info(csv_path):
+    df = pd.read_csv(csv_path)          
+    # 取出 rtt_var_l.get_avg() 列
+    avg_reward = df['reward'].mean()
+
+    sr_max = df['thr_s.get_max()'].max() *100
+    sr_avg = df['thr_s.get_avg()'].mean()*100
+    sr_min = df['thr_s.get_min()'].min()*100
+
+    rtt_max = df['rtt_s.get_max()'].max()*100
+    rtt_avg = df['rtt_s.get_avg()'].mean()*100
+    rtt_min = df['rtt_s.get_min()'].min()*100
+
+    rttvar_max = df['rtt_var_s.get_max()'].max()
+    rttvar_avg = df['rtt_var_m.get_avg()'].mean()
+    rttvar_min = df['rtt_var_s.get_min()'].min()
+
+    loss_max = df['lost_s.get_max()'].max() 
+    loss_avg = df['lost_s.get_avg()'].mean()
+    loss_min = df['lost_s.get_min()'].min()
+
+    return avg_reward,sr_max,sr_avg,sr_min,rtt_max,rtt_avg,rtt_min,rttvar_max,rttvar_avg,rttvar_min,loss_max,loss_avg,loss_min
 
 
-@jit(nopython=True)
-def calculate_rebuffer(size_video_array, future_chunk_length, buffer_size, bit_rate, last_index, future_bandwidth, jump_action_combos, video_bit_rate):
-    max_reward = -100000000
-    start_buffer = buffer_size
-
-    #jump_action_combos = calculate_jump_action_combo(bit_rate)
-    for full_combo in jump_action_combos:
-        combo = full_combo[0:future_chunk_length]
-        # calculate total rebuffer time for this combination (start with start_buffer and subtract
-        # each download time and add 2 seconds in that order)
-        curr_rebuffer_time = 0
-        curr_buffer = start_buffer
-        bitrate_sum = 0
-        smoothness_diffs = 0
-        last_quality = int( bit_rate )
-        for position in range( 0, len( combo ) ):
-            chunk_quality = combo[position]
-            # e.g., if last chunk is 3, then first iter is 3+0+1=4
-            index = last_index + position + 1
-            # this is MB/MB/s --> seconds
-            download_time = (get_chunk_size(chunk_quality, index, size_video_array) / 1000000.) / future_bandwidth
-            if (curr_buffer < download_time):
-                curr_rebuffer_time += (download_time - curr_buffer)
-                curr_buffer = 0
-            else:
-                curr_buffer -= download_time
-            curr_buffer += 4
-            bitrate_sum += video_bit_rate[chunk_quality]
-            smoothness_diffs += abs(
-                video_bit_rate[chunk_quality] - video_bit_rate[last_quality] )
-            last_quality = chunk_quality
-
-        reward = (bitrate_sum / 1000.) - (REBUF_PENALTY *
-                                          curr_rebuffer_time) - (smoothness_diffs / 1000.)
-        if reward >= max_reward:
-            best_combo = combo
-            max_reward = reward
-            send_data = 0
-            if best_combo.size != 0:  # some combo was good
-                send_data = best_combo[0]
-    return send_data
-
-
-def mpc(size_video_array, state, bit_rate, buffer_size, video_chunk_remain, video_bit_rate, past_errors, past_bandwidth_ests, combo_dict):
-    curr_error = 0  # defualt assumes that this is the first request so error is 0 since we have never predicted bandwidth
-    if (len(past_bandwidth_ests) > 0):
-        curr_error = abs(past_bandwidth_ests[-1]- state[2, -1]) / float(state[2, -1])
-    past_errors.append(curr_error)
-
-    # pick bitrate according to MPC
-    # first get harmonic mean of last 5 bandwidths
-    past_bandwidths = state[2, -5:]
-    while past_bandwidths[0] == 0.0:
-        past_bandwidths = past_bandwidths[1:]
-    bandwidth_sum = 0
-    for past_val in past_bandwidths:
-        bandwidth_sum += (1 / float(past_val))
-    harmonic_bandwidth = 1.0 / (bandwidth_sum / len(past_bandwidths))
-
-    # future bandwidth prediction
-    # divide by 1 + max of last 5 (or up to 5) errors
-    max_error = 0
-    error_pos = -5
-    if (len(past_errors) < 5):
-        error_pos = -len(past_errors)
-    max_error = float(max(past_errors[error_pos:]))
-    future_bandwidth = harmonic_bandwidth/(1 + max_error)  # robustMPC here
-    past_bandwidth_ests.append(harmonic_bandwidth)
-
-    # future chunks length (try 4 if that many remaining)
-    last_index = int(CHUNK_TIL_VIDEO_END_CAP - video_chunk_remain)
-    future_chunk_length = MPC_FUTURE_CHUNK_COUNT
-    if (TOTAL_VIDEO_CHUNK - last_index < 5):
-        future_chunk_length = TOTAL_VIDEO_CHUNK - last_index
-
-    jump_action_combos = combo_dict[str(bit_rate)]
-
-    bit_rate = calculate_rebuffer(size_video_array, future_chunk_length, buffer_size, bit_rate,
-                                    last_index, future_bandwidth, jump_action_combos, video_bit_rate)
-    return bit_rate
-
-# =========================================================================
-# ========================== MPC Special (End) ============================
-# =========================================================================
-
-
-# =========================================================================
-# ========================= BBA Special (Start) ===========================
-# =========================================================================
-
-RESEVOIR = 5  # BBA
-CUSHION = 10  # BBA
-
-
-def bba(buffer_size):
-    if buffer_size < RESEVOIR:
-        bit_rate = 0
-    elif buffer_size >= RESEVOIR + CUSHION:
-        bit_rate = BITRATE_LEVELS - 1
-    else:
-        bit_rate = (BITRATE_LEVELS - 1) * (buffer_size - RESEVOIR) / float(CUSHION)
-    bit_rate = int(bit_rate)
-    return bit_rate
-
-# =========================================================================
-# ========================== BBA Special (End) ============================
-# =========================================================================
-
-
-def collect_experience(args, model, model_name, env_settings, trace_num, sess, actor=None):
-    video_size_dir = cfg.video_size_dirs[args.video]
-    net_env = env.Environment(**env_settings)
-
-    total_states = []
-    total_actions = []
-    total_rewards = []
-    total_dones = []
-
-    print('Collect experience with model', model_name)
-    # with tf.Session() as sess:
-    if model == PENSIEVE:
-        if actor is None:
-            model_path = cfg.baseline_model_paths[model_name]
-            actor = a3c.ActorNetwork(sess, state_dim=[S_INFO ,S_LEN] ,action_dim=A_DIM , bitrate_dim=BITRATE_LEVELS)
-            sess.run(tf.global_variables_initializer())
-            saver = tf.train.Saver()  # save neural net parameters
-            saver.restore(sess, model_path)  # restore neural net parameters
-            print("Testing model restored.")
-    elif model == MPC:
-        combo_dict = {'0': calculate_jump_action_combo(0),
-                        '1': calculate_jump_action_combo(1),
-                        '2': calculate_jump_action_combo(2),
-                        '3': calculate_jump_action_combo(3),
-                        '4': calculate_jump_action_combo(4),
-                        '5': calculate_jump_action_combo(5)}
-        size_video_array =[]
-        for bitrate in range(BITRATE_LEVELS):
-            video_size = []
-            with open(video_size_dir + 'video_size_' + str(bitrate)) as f:
-                for line in f:
-                    video_size.append( int( line.split()[0] ) )
-            size_video_array.append(video_size)
-        size_video_array = np.array(np.squeeze(size_video_array))
-        assert len(VIDEO_BIT_RATE) == BITRATE_LEVELS
-        video_bit_rate = np.array(VIDEO_BIT_RATE)
-        past_errors = []
-        past_bandwidth_ests = []
-
-    states = []
-    actions = []
-    rewards = []
-    dones = []
-    all_rewards = []  # for debug use
-
-    time_stamp = 0
-    last_bit_rate = DEFAULT_QUALITY
-    bit_rate = DEFAULT_QUALITY
-    state = np.zeros((S_INFO, S_LEN), dtype=np.float32)
-    test_trace_count = 0
-    all_rewards  = []
-
-    while True:  # serve video forever
-        delay, sleep_time, buffer_size, rebuf, \
-        video_chunk_size, next_video_chunk_sizes, \
-        end_of_video, video_chunk_remain = net_env.get_video_chunk(bit_rate)
-
-        time_stamp += delay  # in ms
-        time_stamp += sleep_time  # in ms
-
-        # reward is video quality - rebuffer penalty - smoothness
-        reward = VIDEO_BIT_RATE[bit_rate] / M_IN_K \
-                    - REBUF_PENALTY * rebuf \
-                    - SMOOTH_PENALTY * np.abs(VIDEO_BIT_RATE[bit_rate] - VIDEO_BIT_RATE[last_bit_rate]) / M_IN_K
-
-        last_bit_rate = bit_rate
-
-        states.append(state)
-        actions.append(bit_rate)
-        rewards.append(reward)
-        dones.append(end_of_video)
-        all_rewards.append(reward)  # for debug use
-
-        # dequeue history record
-        state = np.roll(state, -1, axis=1)
-
-        # this should be S_INFO number of terms
-        state[0, -1] = VIDEO_BIT_RATE[bit_rate] / \
-                        float(np.max(VIDEO_BIT_RATE))  # last quality
-        state[1, -1] = buffer_size / BUFFER_NORM_FACTOR  # 10 sec
-        state[2, -1] = float(video_chunk_size) / \
-                        float(delay) / M_IN_K  # kilo byte / ms
-        state[3, -1] = float(delay) / M_IN_K / BUFFER_NORM_FACTOR  # 10 sec
-        state[4, :BITRATE_LEVELS] = np.array(next_video_chunk_sizes) / M_IN_K / M_IN_K  # mega byte
-        state[5, -1] = np.minimum(video_chunk_remain, CHUNK_TIL_VIDEO_END_CAP) / float(CHUNK_TIL_VIDEO_END_CAP)
-
-        if model == PENSIEVE:
-            bit_rate = pensieve(actor, state, last_bit_rate)
-        elif model == MPC:
-            bit_rate = mpc(size_video_array, state, bit_rate, buffer_size, video_chunk_remain, video_bit_rate, past_errors,
-                            past_bandwidth_ests, combo_dict)
-        else:
-            bit_rate = bba(buffer_size)
-
-        if end_of_video:
-            last_bit_rate = DEFAULT_QUALITY
-            bit_rate = DEFAULT_QUALITY
-            state = np.zeros((S_INFO, S_LEN), dtype=np.float32)
-
-            total_states.extend(states[1:])
-            total_actions.extend(actions[1:])
-            total_rewards.extend(rewards[1:])
-            total_dones.extend(dones[1:])
-
-            states.clear()
-            actions.clear()
-            rewards.clear()
-            dones.clear()
-
-            test_trace_count += 1
-            if test_trace_count >= trace_num:
-                break
-    print('Done!', np.mean(all_rewards))
-    return total_states, total_actions, total_rewards, total_dones, actor
-
-
-def run(args):
-    assert args.trace in cfg.trace_dirs.keys()
-    assert args.video in cfg.video_size_dirs.keys()
-
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_id)  
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-        
-    np.random.seed(args.seed)
-    tf.random.set_random_seed(args.seed)
-    random.seed(args.seed)
-
-    np.random.seed(args.seed)
-    
-    assert len(args.models) >= 1, 'Please specify at least one model for experience pool generation.'
-    for model_name in args.models:
-        assert model_name in ['genet', 'udr_1', 'udr_2', 'udr_3', 'udr_real', 'mpc', 'bba'], f"Unknown model {model_name}"
-
-    exp_pools_dir = os.path.join(cfg.exp_pools_dir, args.trace + f'_{args.video}', '_'.join(args.models), f'seed_{args.seed}_trace_num_{args.trace_num}_fixed_{args.fixed_order}')
-    os.makedirs(exp_pools_dir, exist_ok=True)
-    exp_pool = ExperiencePool()
-
-    actor = None
-    with tf.Session() as sess:
-        trace_dir = cfg.trace_dirs[args.trace]
-        video_size_dir = cfg.video_size_dirs[args.video]
-
-        all_cooked_time ,all_cooked_bw ,all_file_names, all_mahimahi_ptrs = load_traces(trace_dir)
-        trace_num = min(args.trace_num, len(all_file_names))
-        if trace_num == -1:
-            trace_num = len(all_file_names)
-            args.fixed_order = True
-
-        env_settings = {
-            'all_cooked_time': all_cooked_time,
-            'all_cooked_bw': all_cooked_bw,
-            'all_file_names': all_file_names,
-            'all_mahimahi_ptrs': all_mahimahi_ptrs,
-            'video_size_dir': video_size_dir,
-            'fixed': args.fixed_order,
-            'trace_num': trace_num,
-        }
-
-        for model_name in args.models:
-            if model_name in  ['genet', 'udr_1', 'udr_2', 'udr_3', 'udr_real']:
-                model = PENSIEVE
-            elif model_name == 'mpc':
-                model = MPC
-            else:
-                model = BBA
-            states, actions, rewards, dones, actor = collect_experience(args, model, model_name, env_settings, trace_num, sess, actor)
-            for i in range(len(states)):
-                exp_pool.add(state=states[i], action=actions[i], reward=rewards[i], done=dones[i])
-    exp_pool_path = os.path.join(exp_pools_dir, 'exp_pool.pkl')
-    pickle.dump(exp_pool, open(exp_pool_path, 'wb'))
-    print(f"Done. Experience pool saved at:", exp_pool_path)
-
+def extract_ts(csv_path):
+    pass
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--models', help='choose one or more from [genet, udr_1, udr_2, udr_3, udr_real, mpc, bba]', nargs='*', default='genet')
-    parser.add_argument("--trace", help='name of traces (e.g., fcc-train)')
-    parser.add_argument('--video', help='name of videos (e.g., video1)')
-    parser.add_argument('--trace-num', type=int, help='number of traces. if set to -1, use all traces in the trace dir.', default=-1)
-    parser.add_argument('--seed', type=int, help='random seed', default=100003)
-    parser.add_argument('--cuda-id', type=int, help='cuda device idx', default=0)
-    parser.add_argument('--fixed-order', action='store_true', help='iterate over test traces in a fixed sequential order.')
-    args = parser.parse_args()
+    # set dataset path & extracted_info
+    # raw_file_directory = "/data3/wuduo/xuanyu/llmcc/datasets/CC/csv"
+    extracted_info_csv_path = '/data3/wuduo/xuanyu/llmcc/environments/adaptive_bitrate_streaming/artifacts/results/fcc-test_video1/trace_num_100_fixed_True'
 
-    # >>> debug <<<
-    # args.models = ['bba', 'mpc', 'genet']
-    # args.trace = 'fcc-train'
-    # args.video = 'video1'
-    # args.trace_num = -1
-    # args.seed = 1
-    # args.fixed_order = True
-    # >>> debug <<<
 
-    # command examples:
-    # python generate_exp_pool.py --models genet --traces fcc-train --video video1 --trace-num -1 --seed 1 --fixed-order --cuda-id 0
+    # init dataset pool class
+    dataset_pool = _DatasetPool()
 
-    print(args)
+    # 遍历文件，读取csv，组合
+    for algorithm_name in os.listdir(extracted_info_csv_path):
+        algorithm_folder = os.path.join(extracted_info_csv_path, algorithm_name+'/seed_100003')
+        
+        # 检查是否是文件夹
+        if os.path.isdir(algorithm_folder):
+            # 遍历子文件夹中的CSV文件
+            for file_name in os.listdir(algorithm_folder):
+                if file_name.endswith('.csv'):
+                    file_path = os.path.join(algorithm_folder, file_name)
+                    
+                    # 读取CSV文件
+                    df = pd.read_csv(file_path)
+                    # 选择数值列
+                    df = df.select_dtypes(include='number')
+                    df = df.drop(df.columns[-2], axis=1)
 
-    run(args)
+                    top_30_rows = df.head(30).to_numpy()
+                    ts_tensor_data = torch.tensor(top_30_rows, dtype=torch.float32) 
+                    # 提取对应的算法名
+                    # 这里你可以根据具体需求提取数据
+                    prompt_ = standard_prompt_filled()
+                    best_scheme = algorithm_name
+                    dataset_pool.add(prompt_,ts_tensor_data,best_scheme)
+                    # print(f'算法名: {best_scheme}, 文件名: {file_name}')
+                    # print(df)  # 打印读取的数据
+    dataset_pool_output = '/data3/wuduo/xuanyu/llmcc/environments/adaptive_bitrate_streaming/artifacts/dataset_pool.pkl'
+    pickle.dump(dataset_pool, open(dataset_pool_output, 'wb'))
+
+    # # extract info csv
+    # if not os.path.exists(extracted_info_csv_path):
+    #     with open(extracted_info_csv_path, mode='w') as file:
+    #             writer = csv.writer(file)
+    #             writer.writerow(CSV_HEADER)
+                
+    #     for root, dirs, files in os.walk(raw_file_directory):
+    #         for file in files:
+    #             logfile_path = os.path.join(root, file)
+    #             set_env = file.split("_")
+    #             schemes,rtt,queue,loss,bw = set_env[0],int(set_env[2])*2,int(set_env[3]),float(set_env[4]),set_env[1]
+    #             # 计算csv中的信息，写入csv
+    #             avg_reward,sr_max,sr_avg,sr_min,rtt_max,rtt_avg,rtt_min,rttvar_max,rttvar_avg,rttvar_min,loss_max,loss_avg,loss_min = extract_csv_info(logfile_path)
+    #             row = [schemes,rtt,queue,loss,bw,avg_reward,sr_max,sr_avg,sr_min,rtt_max,rtt_avg,rtt_min,rttvar_max,rttvar_avg,rttvar_min,loss_max,loss_avg,loss_min]
+    #             with open(extracted_info_csv_path, mode='a') as file:  # 使用 'ab' 代替 'a'
+    #                 writer = csv.writer(file)
+    #                 writer.writerow(row)
+    # df = pd.read_csv(extracted_info_csv_path)
+    
+
+    # 
+
+
+    # # Group to get label
+    # grouped = df.groupby(['RTT(ms)','queue','loss','BW (Mbps)'])
+
+    # # 找到 D 列中有多个不同值的组
+    # result = grouped.filter(lambda x: x['Schemes'].nunique() > 1)
+
+    # # 输出结果
+    # for name, group in grouped: # (20, 1000, 0.02, 'wired12')
+    #     # 获取该分组 D 列的最大值
+    #     max_in_group = group['Avg_Reward'].max()
+    #     max_row = group[group['Avg_Reward'] == max_in_group]
+
+    #     best_scheme = max_row['Schemes'].values[0]
+
+
+    #     # 提取数据，合成Prompt
+    #     for index, row in group.iterrows():
+
+    #         # 找到csv。合成ts数据
+    #         if name[2] == 0.0:
+    #             tt = '0'
+    #         else:
+    #             tt = name[2]
+    #         coordinated_file_path = os.path.join(raw_file_directory,"{}_{}_{}_{}_{}_cwnd.csv".format(row['Schemes'],name[3],name[0],name[1],tt))
+    #         try:
+    #             df_ts = pd.read_csv(coordinated_file_path)
+    #         except FileNotFoundError:
+    #             print("{}_{}_{}_{}_{}_cwnd.csv not found".format(row['Schemes'],name[3],name[0],name[1],tt))
+    #             continue
+
+
+    #         top_50_rows = df_ts.head(50)
+    #         data_array = top_50_rows.values
+    #         ts_tensor_data = torch.tensor(data_array, dtype=torch.float32) 
+    #         if ts_tensor_data.shape != (50, 77):
+    #             print("{}_{}_{}_{}_{}_cwnd.csv shape error".format(row['Schemes'],name[3],name[0],name[1],tt))
+    #             continue
+
+    #         prompt_ = standard_prompt_filled(row['sr_max'],row['sr_avg'],row['sr_min'],row['rtt_max'],row['rtt_avg'],row['rtt_min'],row['rttvar_max'],row['rttvar_avg'],row['rttvar_min'],row['loss_max'],row['loss_avg'],row['loss_min'])
+    #         dataset_pool.add(prompt_,ts_tensor_data,best_scheme)
+
+            
+
+    # # 组成pair，作为数据对并导出
+    # dataset_pool_output = '/data3/wuduo/xuanyu/llmcc/datasets/CC/dataset_pool.pkl'
+    # pickle.dump(dataset_pool, open(dataset_pool_output, 'wb'))
