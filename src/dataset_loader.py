@@ -25,14 +25,33 @@ class _CCDataset(Dataset):
         label = self.label_list[idx]
         return prompt, ts, label
 
+class _ABRDataset(Dataset):
+    def __init__(self, dataset_pool_path):
+        self.dataset_pool = pickle.load(open(dataset_pool_path, 'rb'))
+        
+        self.prompt_list = self.dataset_pool.prompts
+        self.ts_list = self.dataset_pool.probed_ts
+        self.label_list = self.dataset_pool.labels
+
+    def __len__(self):
+        return len(self.label_list)
+
+    def __getitem__(self, idx):
+        prompt = self.prompt_list[idx]
+        ts = self.ts_list[idx]
+        label = self.label_list[idx]
+        return prompt, ts, label
 
 class DatasetLoader:
     '''
     Load Dataset and Return dataloader.
     '''
 
-    def __init__(self, dataset_pool_path, batch_size=2, train_prop=0.6, val_prop=0.2, test_prop=0.2):
-        self.dataset = _CCDataset(dataset_pool_path)
+    def __init__(self,task_name,dataset_pool_path, batch_size=2, train_prop=0.6, val_prop=0.2, test_prop=0.2):
+        if task_name == "CC":
+            self.dataset = _CCDataset(dataset_pool_path)
+        elif task_name == "ABR":
+            self.dataset = _ABRDataset(dataset_pool_path)
         self.batch_size = batch_size
         self.train_prop = train_prop
         self.val_prop = val_prop

@@ -1,4 +1,5 @@
 from torch import nn
+import torch.nn.functional as F
 import torch.optim as optim
 import torch
 import os
@@ -50,18 +51,24 @@ class Planner:
 
     #         self.model.save_model(os.path.join(
     #             self.checkpoint_save_path, 'checkpoint-{}-eval-epoch{}'.format(self.global_step, epoch)))
+    
     def plan(self):
         self.model.eval()
         predictions = []
 
         with torch.no_grad():
-            for batch_prompt, batch_ts in tqdm(self.test_loader):
-                batch_prompt = batch_prompt.to(self.device)
-                batch_ts = batch_ts.to(self.device)
+            for batch_prompt, batch_ts, batch_label in tqdm(self.test_loader):
+                generated_sequence = self.model(batch_prompt, batch_ts)
 
-                selected_token, generated_sentence = self.model(batch_prompt, batch_ts)
+                # 将生成的token序列转换为自然语言
+                predictions.append(self.tokens_to_text(generated_sequence))
 
+                print(predictions)
 
-                decoded_sentence = self.tokenizer.decode(generated_sentence[0], skip_special_tokens=True)
-
-                print(selected_token,decoded_sentence)
+    def tokens_to_text(self, tokens):
+        # 使用 tokenizer 将 token ID 转换为对应的词汇
+        words = [self.model.tokenizer.decode(token) for token in tokens]
+        
+        # 将词汇连接成一段自然语言
+        text = " ".join(words).replace(" ##", "")  # 处理 subword token
+        return text.strip()
