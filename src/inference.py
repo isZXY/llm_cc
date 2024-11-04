@@ -32,6 +32,6 @@ if __name__ == "__main__":
 
 
     # set Planner and plan
-    planner = Planner(model, test_loader, checkpoint_save_path,device)
+    planner = Planner(model, checkpoint_save_path,device)
 
-    planner.plan()
+    planner.inference_on_dataset(test_loader)
