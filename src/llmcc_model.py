@@ -189,7 +189,7 @@ class Model(nn.Module):
         probabilities = F.softmax(masked_logits, dim=-1)
         next_token = torch.multinomial(probabilities, 1).item()
         generated_sequence.append(next_token)
-
+        algo_token_id = next_token
 
         for _ in range(50):
 
@@ -215,7 +215,7 @@ class Model(nn.Module):
 
 
 
-        return generated_sequence
+        return algo_token_id, generated_sequence
     
 
     def get_logits(self,last_hidden_state):

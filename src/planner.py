@@ -16,6 +16,13 @@ class Planner:
         self.checkpoint_save_path = checkpoint_save_path
 
 
+    def tokens_to_text(self, tokens):
+        words = [self.model.tokenizer.decode(token) for token in tokens]
+        
+        text = " ".join(words).replace(" ##", "")  
+        return text.strip()
+
+
     # def train(self):
     #     for epoch in range(self.train_epochs):
     #         for i, (batch_prompt, batch_ts, batch_label) in tqdm(enumerate(self.train_loader)):
@@ -58,17 +65,10 @@ class Planner:
 
         with torch.no_grad():
             for batch_prompt, batch_ts, batch_label in tqdm(self.test_loader):
-                generated_sequence = self.model(batch_prompt, batch_ts)
+                algo_token_id, generated_sequence = self.model(batch_prompt, batch_ts)
 
-                # 将生成的token序列转换为自然语言
                 predictions.append(self.tokens_to_text(generated_sequence))
-
+                algo_token_id = self.tokens_to_text([algo_token_id])
+                print("selected algorithm id: {}".format(algo_token_id))
                 print(predictions)
 
-    def tokens_to_text(self, tokens):
-        # 使用 tokenizer 将 token ID 转换为对应的词汇
-        words = [self.model.tokenizer.decode(token) for token in tokens]
-        
-        # 将词汇连接成一段自然语言
-        text = " ".join(words).replace(" ##", "")  # 处理 subword token
-        return text.strip()
