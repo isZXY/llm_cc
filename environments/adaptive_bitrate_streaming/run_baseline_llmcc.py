@@ -3,21 +3,30 @@ import argparse
 import os
 import pdb
 import csv
+import time 
 import itertools
 import numpy as np
 import tensorflow as tf
+import json
+import torch
 import random
 import baseline_special.a3c as a3c
 import baseline_special.env as env
 from numba import jit
-from token_config import cfg
+from datetime import datetime
+
+import sys
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
+
+from config import cfg
 from baseline_special.utils.utils import load_traces
 from baseline_special.utils.constants import (
     REBUF_PENALTY, SMOOTH_PENALTY, DEFAULT_QUALITY, S_INFO, S_LEN, A_DIM, BITRATE_LEVELS, BUFFER_NORM_FACTOR,
     M_IN_K, SMOOTH_PENALTY, VIDEO_BIT_RATE, CHUNK_TIL_VIDEO_END_CAP, RAND_RANGE, DEFAULT_QUALITY, TOTAL_VIDEO_CHUNK
 )
 from utils import action2bitrate, calc_mean_reward, clear_dir
-
+from TensorManager import TensorManager
 
 PENSIEVE = 0
 MPC = 1
@@ -205,8 +214,50 @@ def bba(buffer_size):
 # ========================== BBA Special (End) ============================
 # =========================================================================
 
+def standard_prompt_filled():
+    prompt = (
+        f"<|Task description|>You are tasked with selecting the most appropriate adaptive bitrate algorithm based on the provided network statistics and scenario. Your goal is to select the algorithm that best suits the given network status. The given algorithms are 'genet', 'udr_1', 'udr_2', 'udr_3', 'udr_real', 'mpc', 'bba','mixed'\n"
+        f"<|CSV Head Explanation|>Each feature in the following time series are: time_stamp,bit_rate,buffer_size,rebuffer_time,chunk_size,download_time,smoothness,model,reward\n"
+        # f"<|Network stat|>bit_rate(Kbps): max {sr_max}, average {sr_avg}, min {sr_min}; buffer_size(s): max {rtt_max}, average {rtt_avg}, min {rtt_min}; RTT rebuffer_time(ms): max {rttvar_max}, average {rttvar_avg}, min {rttvar_min}; chunk_size: max {loss_max}, average {loss_avg}, min {loss_min};\n"
+    )
+    return prompt
+
+def get_algo_selection():
+    
+    path = '/data3/wuduo/xuanyu/llmcc/swap/algo_selection_data.json'
+    
+    # 循环等待文件存在
+    while not os.path.exists(path):
+        time.sleep(.5)  # 等待1秒再检查一次
+    time_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    print("got new algo selection at {}".format(time_now))
+    # 文件存在，读取数据
+    with open(path, 'r') as f:
+        data = json.load(f)
+        algorithm = data['algorithm']
+
+    # 读取完后删除文件
+    os.remove(path)
+
+    return algorithm
+
+
+def put_network_data(prompt,ts):
+    data = {
+        'prompt': prompt,
+        'ts': torch.tensor(ts).tolist() 
+    }
+    with open('/data3/wuduo/xuanyu/llmcc/swap/network_data.json', 'w') as ff:
+        json.dump(data, ff)
+
+    return get_algo_selection()
+
 
 def run(args):
+
+    tensor_manager = TensorManager()
+
     # assert model
     assert args.model in ['genet', 'udr_1', 'udr_2', 'udr_3', 'udr_real', 'mpc', 'bba','mixed']
     print(cfg.trace_dirs.keys())
@@ -243,7 +294,7 @@ def run(args):
     net_env = env.Environment(all_cooked_time=all_cooked_time, all_cooked_bw=all_cooked_bw, all_file_names=all_file_names, all_mahimahi_ptrs=all_mahimahi_ptrs,
                               video_size_dir=video_size_dir, fixed=args.fixed_order, trace_num=trace_num)
 
-    results_dir = os.path.join(cfg.results_dir, f'{args.test_trace}_{args.video}', f'trace_num_{trace_num}_fixed_{args.fixed_order}', args.model, f'seed_{args.seed}')
+    results_dir = os.path.join(cfg.results_dir, f'{args.test_trace}_{args.video}', f'trace_num_{trace_num}_fixed_{args.fixed_order}', 'llmcc', f'seed_{args.seed}')
     os.makedirs(results_dir, exist_ok=True)
     clear_dir(results_dir)
 
@@ -295,13 +346,22 @@ def run(args):
         all_rewards  = []
 
 
+
+        run_count = 0
         sel_model = 'genet'
         while True:  # serve video forever
-            # value = random.choices([0, 1], weights=[0.85, 0.15], k=1)[0]
-            value = random.choices([0, 1])[0]
+
+            run_count +=1
+            algorithm = sel_model
+            if run_count > 30 and run_count % 60 ==0:
+                try:
+                    current_tensor = tensor_manager.get_tensor()
+                    algorithm = put_network_data(standard_prompt_filled(),current_tensor)
+                except ValueError as e:
+                    print(e)
             
-            if value == 1:
-                sel_model = random.choice(['genet', 'udr_1', 'udr_2', 'udr_3', 'udr_real', 'mpc', 'bba'])
+            if algorithm != sel_model:
+                sel_model = algorithm
 
                 if sel_model in  ['genet', 'udr_1', 'udr_2', 'udr_3', 'udr_real']:
                     model = PENSIEVE
@@ -342,7 +402,15 @@ def run(args):
                      sel_model,
                      reward])
             
+            new_data = [time_stamp / M_IN_K,
+                     VIDEO_BIT_RATE[bit_rate],
+                     buffer_size,
+                     rebuf,
+                     video_chunk_size,
+                     delay,
+                     reward]
 
+            tensor_manager.add_data(new_data)
             # dequeue history record
             state = np.roll(state, -1, axis=1)
 

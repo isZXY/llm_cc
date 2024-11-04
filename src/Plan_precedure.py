@@ -7,21 +7,24 @@ from planner import Planner
 
 
 def Plan_precedure(planner):
+    count =0
     while True:     
         if os.path.exists('network_data.json'):
+            count += 1
+            print("got new network data the {} time".format(count))
             with open('network_data.json', 'r') as f:
                 data = json.load(f)
                 prompt = data['prompt']
                 
-                ts = torch.tensor(data['ts'])
+                ts = torch.tensor(data['ts']).unsqueeze(dim=0)
                 algo_token_id, predictions = planner.plan(prompt,ts)
                 data = {
                         'algorithm': algo_token_id
                     }
                 print("change selection for reason {}".format(predictions))
                 with open('algo_selection_data.json', 'w') as ff:
-
                      json.dump(data, ff)
+                     
             os.remove('network_data.json')
 
         time.sleep(1)  # 等待下一次检查
