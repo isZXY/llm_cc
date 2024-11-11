@@ -23,7 +23,7 @@ if __name__ == "__main__":
     num_classes = 7
 
     # 1. load dataset
-    dataset_loader = DatasetLoader(
+    dataset_loader = DatasetLoader('ABR',
         '../datasets/dataset_pool_abr.pkl', batch_size=2, train_prop=0.6, val_prop=0.2, test_prop=0.2)
     train_loader, val_loader, test_loader = dataset_loader.load_dataset()
 

@@ -37,11 +37,10 @@ class Trainer:
 
                 self.optimizer.zero_grad()
 
-                logits = self.model(batch_prompt, batch_ts).squeeze()
-                batch_label = batch_label.to(self.device)
-                loss = self.loss_fcn(logits, batch_label)
+                total_loss = self.model(batch_prompt, batch_ts, batch_label, mode="train")
+
                 self.boardwriter.add_scalar(
-                    'iter Loss/train', loss.item(), self.global_step)
+                    'iter Loss/train', total_loss.item(), self.global_step)
 
                 loss.backward()
                 self.optimizer.step()

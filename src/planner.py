@@ -28,7 +28,7 @@ class Planner:
 
         with torch.no_grad():
             for batch_prompt, batch_ts, batch_label in tqdm(test_loader):
-                algo_token_id, generated_sequence = self.model(batch_prompt, batch_ts)
+                algo_token_id, generated_sequence, _ = self.model(batch_prompt, batch_ts)
 
                 predictions.append(self.tokens_to_text(generated_sequence))
                 algo_token_id = self.tokens_to_text([algo_token_id])
