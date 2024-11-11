@@ -14,8 +14,11 @@ model_dict = {
     'genet': ('k', 'd'),  # black, diamond
     'mpc': ('y', 'x'),  # yellow, x-mark
     'mixed_high_freq': ('orange', 'v'),  # orange, triangle down
-    'mixed_low_freq': ('purple', 'p')  # purple, pentagon
-    }
+    'mixed_low_freq': ('purple', 'p'),  # purple, pentagon
+    'llmcc': ('aqua', '*')  # aqua, star
+}
+
+
 
 def get_ticks(num, cnt):
     length = max(num) - min(num)
@@ -55,6 +58,7 @@ get_data('udr_2')
 get_data('udr_3')
 get_data('mixed_high_freq')
 get_data('mixed_low_freq')
+get_data('llmcc')
 
 for i in range(100):
     print(i)

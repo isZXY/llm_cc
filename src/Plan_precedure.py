@@ -4,6 +4,7 @@ import time
 import os
 from llmcc_model import Model
 from planner import Planner
+import shutil
 
 
 def Plan_precedure(planner):
@@ -35,12 +36,27 @@ def Plan_precedure(planner):
 if __name__ == "__main__":
     os.chdir('/data3/wuduo/xuanyu/llmcc/swap')
 
-    device = torch.device("cpu")
+
+    # reset swap folder files
+    folder_path = '/data3/wuduo/xuanyu/llmcc/swap'
+
+    for filename in os.listdir(folder_path):
+        file_path = os.path.join(folder_path, filename)
+        try:
+            if os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+            else:
+                os.remove(file_path)
+        except Exception as e:
+            print(f"Error deleting {file_path}: {e}")
+
+            
+    device = torch.device("cuda:6")
     plm_path = "../llama-7b"
 
     model = Model(plm_path, device)
 
-     # 3. Set train parameters
+     # 3. Set train parameters··
     checkpoint_save_path = "../checkpoints"
 
     planner = Planner(model, checkpoint_save_path, device)

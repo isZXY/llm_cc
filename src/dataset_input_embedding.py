@@ -197,6 +197,7 @@ class DatasetEmbedding(nn.Module):
 
         # set training device
         self.device = device
+
         # load tokenizer & plm
         self.tokenizer = tokenizer
         self.llm_model = llm_model

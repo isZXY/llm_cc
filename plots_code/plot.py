@@ -6,14 +6,16 @@ import os
 import sys
 
 model_dict = {
-    'bba' : (1, 'b', 's'),
-    'udr_1' : (2, 'r', 'o'),
-    'udr_2' : (3, 'm', '<'),
-    'udr_3' : (4, 'g', '>'),
-    'udr_real' : (5, 'c', '^'),
-    'genet' : (6, 'k', 'd'),
-    'mpc' : (7, 'y', 'x')
-    }
+    'bba': (1, 'blue', 's'),       # 蓝色, 符号 's'
+    'udr_1': (2, 'red', 'o'),      # 红色, 符号 'o'
+    'udr_2': (3, 'magenta', '<'),  # 品红色, 符号 '<'
+    'udr_3': (4, 'green', '>'),    # 绿色, 符号 '>'
+    'udr_real': (5, 'cyan', '^'),  # 青色, 符号 '^'
+    'genet': (6, 'yellow', 'd'),   # 黄色, 符号 'd'
+    'mpc': (7, 'purple', 'x'),     # 紫色, 符号 'x'
+    'llmcc': (8, 'aqua', '*'),     # 水绿色, 符号 '*'
+    'mixed': (9, 'orange', '+')    # 橙色, 符号 '+'
+}
 
 def get_ticks(num, cnt):
     length = max(num) - min(num)
@@ -89,9 +91,9 @@ def paint(filename, outputfile, title):
 
 # plt.style.use('seaborn-white')
 
-dir = '/data3/wuduo/xuanyu/llmcc/environments/adaptive_bitrate_streaming/artifacts/results_start_timestamp_initialized/fcc-test_video1/trace_num_100_fixed_True/mixed_high_freq'
+dir = '/data3/wuduo/xuanyu/llmcc/environments/adaptive_bitrate_streaming/artifacts/results_start_timestamp_initialized/fcc-test_video1/trace_num_100_fixed_True/llmcc'
 
-outputdir = './plots/mixed_high_freq'
+outputdir = './plots/llmcc'
 
 for root, dirs, files in os.walk(dir):
     for file in files:

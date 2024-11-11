@@ -353,7 +353,7 @@ def run(args):
 
             run_count +=1
             algorithm = sel_model
-            if run_count > 30 and run_count % 60 ==0:
+            if run_count > 30 and run_count % 10 ==0:
                 try:
                     current_tensor = tensor_manager.get_tensor()
                     algorithm = put_network_data(standard_prompt_filled(),current_tensor)

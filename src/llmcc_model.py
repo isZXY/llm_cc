@@ -122,7 +122,7 @@ class Model(nn.Module):
         # self.output_projection = _ExplainableTokenGenerationHead(self.llm_model.config.hidden_size,self.vocab_size,self.custom_token_size,self.tokenizer.eos_token_id,self.tokenizer,device,max_length=50)
         
         # last hidden state -> logits (vocabulary)
-        self.output_projection = nn.Linear(self.llm_model.config.hidden_size,self.vocab_size)
+        self.output_projection = nn.Linear(self.llm_model.config.hidden_size,self.vocab_size).to(device)
 
         # Set modules except llm
         self.modules_except_llm = nn.ModuleList([
@@ -130,7 +130,6 @@ class Model(nn.Module):
         ])
 
         self.custom_token_indices = model.get_custom_token_indices()
-
 
         # generation max length
         self.generation_max_length = 50
@@ -212,8 +211,6 @@ class Model(nn.Module):
             if next_token == self.tokenizer.eos_token_id:
                 break
             
-
-
 
         return algo_token_id, generated_sequence
     

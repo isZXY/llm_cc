@@ -28,7 +28,7 @@ if __name__ == "__main__":
     train_loader, val_loader, test_loader = dataset_loader.load_dataset()
 
     # 2. Load Model
-    model = Model(plm_path, device, num_classes)
+    model = Model(plm_path, device)
 
     # 3. Set train parameters
     learning_rate = .01
