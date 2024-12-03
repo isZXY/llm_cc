@@ -63,6 +63,8 @@ class Environment:
                 for line in f:
                     self.video_size[bitrate].append(int(line.split()[0]))
 
+        self.last_bitrate = None  # 记录上一个比特率
+
     def get_video_chunk(self, quality):
 
         assert quality >= 0
@@ -73,6 +75,11 @@ class Environment:
         # use the delivery opportunity in mahimahi
         delay = 0.0  # in ms
         video_chunk_counter_sent = 0  # in bytes
+
+
+        # Get Current Bandwidth
+        current_bw = self.cooked_bw[self.mahimahi_ptr] * B_IN_MB / BITS_IN_BYTE  # 当前带宽 (MB/ms)
+
 
         while True:  # download video chunk over mahimahi
             throughput = self.cooked_bw[self.mahimahi_ptr] \
@@ -178,6 +185,22 @@ class Environment:
         for i in range(BITRATE_LEVELS):
             next_video_chunk_sizes.append(self.video_size[i][self.video_chunk_counter])
 
+
+        # 计算带宽变化
+        bw_change = current_bw - self.cooked_bw[self.mahimahi_ptr - 1] * B_IN_MB / BITS_IN_BYTE if self.mahimahi_ptr > 0 else 0
+
+        # 带宽利用率
+        max_possible_throughput = current_bw * (self.cooked_time[self.mahimahi_ptr] - self.last_mahimahi_time) * PACKET_PAYLOAD_PORTION
+        bandwidth_utilization = video_chunk_counter_sent / max_possible_throughput if max_possible_throughput > 0 else 0
+
+        # 比特率平滑度（Bitrate Change）
+        bitrate_smoothness = abs(quality - self.last_bitrate) if self.last_bitrate is not None else 0
+        self.last_bitrate = quality
+
+        # 计算Rebuffer Time Ratio
+        rebuf_time_ratio = rebuf / (VIDEO_CHUNK_LEN / MILLISECONDS_IN_SECOND)
+
+        
         return delay, \
             sleep_time, \
             return_buffer_size / MILLISECONDS_IN_SECOND, \
@@ -185,4 +208,8 @@ class Environment:
             video_chunk_size, \
             next_video_chunk_sizes, \
             end_of_video, \
-            video_chunk_remain
+            video_chunk_remain,\
+            bw_change, \
+            bandwidth_utilization,\
+            bitrate_smoothness,\
+            rebuf_time_ratio

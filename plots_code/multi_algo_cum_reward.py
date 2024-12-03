@@ -26,7 +26,7 @@ def get_ticks(num, cnt):
         return 1
     return round(length / cnt)
 
-dir_pre = '/data3/wuduo/xuanyu/llmcc/environments/adaptive_bitrate_streaming/artifacts/results_start_timestamp_initialized/fcc-test_video1/trace_num_100_fixed_True'
+dir_pre = '/data3/wuduo/xuanyu/llmcc/environments/adaptive_bitrate_streaming/artifacts_without_sft/results/fcc-test_video1/trace_num_100_fixed_True'
 output_dir = './plots/others'
 
 data = []

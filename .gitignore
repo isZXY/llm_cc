@@ -3,7 +3,8 @@
 /datasets/CC/CC/txt
 /datasets/CC/*.csv
 /datasets/CC/CC/*.csv
-
+/datasets/ABR/trace_num_100_fixed_True
+/environments/adaptive_bitrate_streaming/artifacts*
 /datasets/CC/*.pkl
 /src/*.pkl
 /datasets/*.csv
@@ -20,5 +21,5 @@ __pycache__
 /results/
 /*tar.gz
 /environments/adaptive_bitrate_streaming/artifacts
-/plots_code/plots
+/plots_code/plots/*
 /swap

@@ -30,5 +30,13 @@ for ABR, run:
 
 # Run Training
 training means use collected dataset to train model.
+run: `python ./src/run.py`
+
 
 # Collecting Dataset
+- 输入是一个prompt(包含核心信息) + 一个time series
+- 输出是一个 label + 一段解释
+1. 数据集关键：如何给出正确的算法选择？关键是性能出现drop的时候要准确找到排名第一的算法 
+2. 给出的解释可以先大致做一个分类然后按照这些分类的字眼去切换。
+3. 给定的信息是啥比较靠谱？
+总结一下

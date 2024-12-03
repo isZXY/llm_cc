@@ -208,7 +208,7 @@ def bba(buffer_size):
 
 def run(args):
     # assert model
-    assert args.model in ['genet', 'udr_1', 'udr_2', 'udr_3', 'udr_real', 'mpc', 'bba','mixed']
+    assert args.model in ['genet', 'udr_1', 'udr_2', 'udr_3', 'udr_real', 'mpc', 'bba']
     print(cfg.trace_dirs.keys())
     print(args.test_trace)
     assert args.test_trace in cfg.trace_dirs.keys()
@@ -250,7 +250,9 @@ def run(args):
     result_path = os.path.join(results_dir, 'result_sim_abr_{}.csv'.format(all_file_names[net_env.trace_idx]))
     result_file = open(result_path, 'w',newline = '')
     csv_writer = csv.writer(result_file)
-    csv_writer.writerow(['time_stamp', 'bit_rate', 'buffer_size', 'rebuffer_time', 'chunk_size', 'download_time', 'smoothness', 'model', 'reward'])
+    csv_writer.writerow(['time_stamp', 'bit_rate', 'buffer_size', 'rebuffer_time', 'chunk_size', 'download_time', 'smoothness', 'model', 'reward','bw_change','bandwidth_utilization','bitrate_smoothness','rebuf_time_ratio'])
+
+    
 
     trace_indices = [net_env.trace_idx]
         
@@ -304,7 +306,9 @@ def run(args):
             #         print("change for {}".format(model))
             delay, sleep_time, buffer_size, rebuf, \
             video_chunk_size, next_video_chunk_sizes, \
-            end_of_video, video_chunk_remain = net_env.get_video_chunk(bit_rate)
+            end_of_video, video_chunk_remain, bw_change, \
+            bandwidth_utilization,bitrate_smoothness,rebuf_time_ratio = net_env.get_video_chunk(bit_rate)
+
 
             time_stamp += delay  # in ms
             time_stamp += sleep_time  # in ms
@@ -329,8 +333,13 @@ def run(args):
                      delay,
                      smoothness,
                      model_mapping[model],
-                     reward])
+                     reward,
+                     bw_change,
+                     bandwidth_utilization,
+                     bitrate_smoothness,
+                     rebuf_time_ratio])
             
+
 
             # dequeue history record
             state = np.roll(state, -1, axis=1)
@@ -369,7 +378,7 @@ def run(args):
 
                 csv_writer = csv.writer(result_file)
 
-                csv_writer.writerow(['time_stamp', 'bit_rate', 'buffer_size', 'rebuffer_time', 'chunk_size', 'download_time', 'smoothness', 'model', 'reward'])
+                csv_writer.writerow(['time_stamp', 'bit_rate', 'buffer_size', 'rebuffer_time', 'chunk_size', 'download_time', 'smoothness', 'model', 'reward','bw_change','bandwidth_utilization','bitrate_smoothness','rebuf_time_ratio'])
 
                 trace_indices.append(net_env.trace_idx)
 
@@ -396,9 +405,11 @@ if __name__ == '__main__':
     parser.add_argument('--cuda-id', type=int, help='cuda device idx', default=0)
     parser.add_argument('--fixed-order', action='store_true', help='iterate over test traces in a fixed sequential order.')
     args = parser.parse_args()
+    
 
+    # 'genet', 'udr_1', 'udr_2', 'udr_3', 'udr_real', 'mpc', 'bba'
     # >>> debug <<<
-    args.model = 'udr_real'
+    args.model = 'bba'
     args.test_trace = 'fcc-test'
     args.video = 'video1'
     args.test_trace_num = 100
