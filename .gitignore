@@ -23,3 +23,5 @@ __pycache__
 /environments/adaptive_bitrate_streaming/artifacts
 /plots_code/plots/*
 /swap
+/重要实验结果备份
+/rewards_boxplot.pdf

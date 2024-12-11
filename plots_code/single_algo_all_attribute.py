@@ -4,18 +4,8 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
 import os
 import sys
+from const import *
 
-model_dict = {
-    'bba': (1, 'blue', 's'),       # 蓝色, 符号 's'
-    'udr_1': (2, 'red', 'o'),      # 红色, 符号 'o'
-    'udr_2': (3, 'magenta', '<'),  # 品红色, 符号 '<'
-    'udr_3': (4, 'green', '>'),    # 绿色, 符号 '>'
-    'udr_real': (5, 'cyan', '^'),  # 青色, 符号 '^'
-    'genet': (6, 'yellow', 'd'),   # 黄色, 符号 'd'
-    'mpc': (7, 'purple', 'x'),     # 紫色, 符号 'x'
-    'llmcc': (8, 'aqua', '*'),     # 水绿色, 符号 '*'
-    'mixed': (9, 'orange', '+')    # 橙色, 符号 '+'
-}
 
 def get_ticks(num, cnt):
     length = max(num) - min(num)
@@ -77,7 +67,7 @@ def paint(filename, outputfile, title):
     plt.grid()
     plt.ylabel('Model')
     for i in range(len(models)):
-        (num, col, mark) = model_dict[models[i]]
+        (num, col, mark) = model_dict_single[models[i]]
         plt.scatter(time_stamps[i], num, 100, col, mark, label=models[i])
     
     handles, labels = plt.gca().get_legend_handles_labels()
