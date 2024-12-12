@@ -219,12 +219,16 @@ def run(args):
     
     if args.model in  ['genet', 'udr_1', 'udr_2', 'udr_3', 'udr_real']:
         model = PENSIEVE
+        sel_model = args.model
     elif args.model == 'mpc':
         model = MPC
+        sel_model = args.model
     elif args.model == 'bba':
         model = BBA
+        sel_model = args.model
     else:
         model = MIXED
+        sel_model = args.model
 
     trace_dir = cfg.trace_dirs[args.test_trace]
     video_size_dir = cfg.video_size_dirs[args.video]
@@ -309,6 +313,20 @@ def run(args):
             # if time_stamp > 4700 and time_stamp <4800:
             #     model = random.choice(['BBA'])
             #     print("change for {}".format(model))
+
+
+            if time_stamp > 4700 * M_IN_K and time_stamp < 4800 *M_IN_K:
+                sel_model = 'udr_3'
+                model = PENSIEVE
+                model_path = cfg.baseline_model_paths[sel_model]
+                print("change for {}".format(sel_model))
+
+                # model_path = cfg.baseline_model_paths[args.model]
+                # actor = a3c.ActorNetwork(sess, state_dim=[S_INFO ,S_LEN] ,action_dim=A_DIM , bitrate_dim=BITRATE_LEVELS)
+                # sess.run(tf.global_variables_initializer())
+                # saver = tf.train.Saver()  # save neural net parameters
+                saver.restore(sess, model_path)  # restore neural net parameters
+                # print("Testing model restored.")
                     
             delay, sleep_time, buffer_size, rebuf, \
             video_chunk_size, next_video_chunk_sizes, \
@@ -323,9 +341,6 @@ def run(args):
 
 
 
-            if time_stamp > 4700 * M_IN_K and time_stamp < 4800 *M_IN_K:
-                model = 2
-                print("change for {}".format(model))
 
             # reward is video quality - rebuffer penalty - smoothness
             reward = VIDEO_BIT_RATE[bit_rate] / M_IN_K \
@@ -346,7 +361,7 @@ def run(args):
                      video_chunk_size,
                      delay,
                      smoothness,
-                     model_mapping[model],
+                     sel_model,
                      reward,
                      bw_change,
                      bandwidth_utilization,
