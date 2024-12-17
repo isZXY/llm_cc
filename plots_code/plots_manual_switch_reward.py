@@ -14,7 +14,7 @@ from const import *
 
 
 switch_plot_dict ={
-    'arbitary_switch_true_trace27.csv': ('#FF8C00', '.'),
+    'arbitrary_switch_true_trace27.csv': ('#FF8C00', '.'),
     'no_switch_true_trace27.csv': ('#4B0082', 'o'),
     'manual_switch_true_trace27.csv': ('#CD853F', '.'),
 
@@ -22,7 +22,7 @@ switch_plot_dict ={
 
 csv_file_list = [
     'no_switch_true_trace27.csv',
-    'arbitary_switch_true_trace27.csv',
+    'arbitrary_switch_true_trace27.csv',
     'manual_switch_true_trace27.csv',
     
 ]
