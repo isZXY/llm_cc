@@ -7,13 +7,15 @@ class PretrainedLanguageModel:
         self.device = device
         if model_name == "llama":
             
+            self.plm_embed_sizes = 4096
+
             # Load Pretrained Model
             self.llm_model = LlamaModel.from_pretrained(
                 model_path,
                 trust_remote_code=True,
                 local_files_only=True,
             )
-
+            
             # Load LlamaTokenizer
             self.tokenizer = LlamaTokenizer.from_pretrained(model_path)
 
@@ -41,7 +43,6 @@ class PretrainedLanguageModel:
 
     def get_vocab_size(self):
         return len(self.tokenizer)
-
 
     def get_custom_token_size(self):
         return self.custom_token_size

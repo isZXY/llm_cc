@@ -1,3 +1,4 @@
+
 class _DatasetPool:
     '''
     The experience pool used to save & load data.
@@ -8,16 +9,27 @@ class _DatasetPool:
         Probed Time Series: ndarray, The Multi-dimension time series probed during startup.
         Labels: string, The Best Algos's name. "Best" is evaluated during dataset collection.
     '''
-
     def __init__(self):
-        self.prompts = []
-        self.probed_ts = []
-        self.labels = []
+        
+        # self.prompts = [] 
+        self.states = [] # probed ts组成
+        self.actions = [] # 对应选择的label
+        self.rewards = []
+        self.dones = []
 
-    def add(self, prompts, probed_ts, label):
-        self.prompts.append(prompts)
-        self.probed_ts.append(probed_ts)
-        self.labels.append(label)
+    def add(self, state, action, reward, done):
+        # self.prompts.append(prompt)
+        self.states.append(state)  # sometime state is also called obs (observation)
+        self.actions.append(action)
+        self.rewards.append(reward)
+        self.dones.append(done)
+
+    def extend(self, states, actions, rewards, dones):
+        # self.prompts.extend(prompts)
+        self.states.extend(states)  # sometime state is also called obs (observation)
+        self.actions.extend(actions)
+        self.rewards.extend(rewards)
+        self.dones.extend(dones)
 
     def __len__(self):
-        return len(self.labels)
+        return len(self.states)

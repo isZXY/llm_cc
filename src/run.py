@@ -20,11 +20,10 @@ if __name__ == "__main__":
     device = torch.device("cpu")
     plm_path = "../llama-7b"
     boardwriter = SummaryWriter(log_dir='logs')
-    num_classes = 7
 
     # 1. load dataset
     dataset_loader = DatasetLoader('ABR',
-        '../datasets/ABR/dataset_pool_ABR.pkl', batch_size=2, train_prop=0.6, val_prop=0.2, test_prop=0.2)
+        '../datasets/ABR/dataset_pool_ABR.pkl', batch_size=1, train_prop=0.6, val_prop=0.2, test_prop=0.2)
     train_loader, val_loader, test_loader = dataset_loader.load_dataset()
 
     # 2. Load Model
@@ -38,5 +37,5 @@ if __name__ == "__main__":
     # set Trainer and train
     trainer = Trainer(model, boardwriter, train_loader, val_loader,
                       learning_rate, train_epochs, checkpoint_save_path,device)
-
+    
     trainer.train()

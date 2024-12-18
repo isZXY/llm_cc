@@ -2,7 +2,7 @@ import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from dataset_input_embedding import DatasetEmbedding
+from dataset_input_embedding import DatasetEmbedding,ActionEmbedding,ReturnEmbedding,TimeEmbedding
 from pretrained_model import PretrainedLanguageModel
 from peft import get_peft_model, LoraConfig
 from token_config import TokenConfig
@@ -113,6 +113,9 @@ class Model(nn.Module):
         self.llm_model = self.__set_peft_model(rank=32)
 
         # set first-time input embedding layer
+        self.action_embedding = ActionEmbedding(plm_embed_size,device)
+
+
         self.input_embedding_layer = DatasetEmbedding(
             self.tokenizer, self.llm_model, self.device)
 
@@ -124,7 +127,7 @@ class Model(nn.Module):
         # last hidden state -> logits (vocabulary)
         self.output_projection = nn.Linear(self.llm_model.config.hidden_size,self.vocab_size).to(device)
 
-        # Set modules except llm
+        # Set modules except llm:TODO
         self.modules_except_llm = nn.ModuleList([
             self.input_embedding_layer.vocab_mapping_to_prototype_layer, self.input_embedding_layer.patch_embedding, self.input_embedding_layer.normalize_layers, self.input_embedding_layer.reprogramming_layer, self.output_projection
         ])
@@ -158,86 +161,86 @@ class Model(nn.Module):
             os.path.join(checkpoint_path, 'modules_except_plm.pth')))
 
 
-    def first_forward(self, batch_prompt, batch_ts):
-        '''
-        The first input need a special embedding precedure
-        ''' 
+    # def first_forward(self, batch_prompt, batch_ts):
+    #     '''
+    #     The first input need a special embedding precedure
+    #     ''' 
 
-        batch_ts = batch_ts.float().to(self.device) 
-        input_embedding = self.input_embedding_layer(batch_prompt, batch_ts) 
+    #     batch_ts = batch_ts.float().to(self.device) 
+    #     input_embedding = self.input_embedding_layer(batch_prompt, batch_ts) 
 
-        # (batch size, sequence length, hidden size)
-        llm_last_hidden_state = self.llm_model(
-            inputs_embeds=input_embedding).last_hidden_state
+    #     # (batch size, sequence length, hidden size)
+    #     llm_last_hidden_state = self.llm_model(
+    #         inputs_embeds=input_embedding).last_hidden_state
         
-        # selected_token, generated_sentence = self.output_projection(llm_last_hidden_state)
-        return llm_last_hidden_state
+    #     # selected_token, generated_sentence = self.output_projection(llm_last_hidden_state)
+    #     return llm_last_hidden_state
 
-    def forward(self, batch_prompt, batch_ts, batch_label=None, mode="inference"):
-        """
-        Forward pass for the model. If mode is 'train', compute the loss and return it.
-        Otherwise, return the generated sequence.
+    # def forward(self, batch_prompt, batch_ts, batch_label=None, mode="inference"):
+    #     """
+    #     Forward pass for the model. If mode is 'train', compute the loss and return it.
+    #     Otherwise, return the generated sequence.
 
-        :param batch_prompt: The input prompt to the model.
-        :param batch_ts: The time-series data (if any).
-        :param batch_label: The ground-truth labels for loss computation (only used in train mode).
-        :param mode: Mode of operation - 'train' or 'inference'.
-        :return: Depending on the mode, returns either the loss or the generated sequence.
-        """
-        # store generated sequence
-        generated_sequence = []
-        total_loss = 0
+    #     :param batch_prompt: The input prompt to the model.
+    #     :param batch_ts: The time-series data (if any).
+    #     :param batch_label: The ground-truth labels for loss computation (only used in train mode).
+    #     :param mode: Mode of operation - 'train' or 'inference'.
+    #     :return: Depending on the mode, returns either the loss or the generated sequence.
+    #     """
+    #     # store generated sequence
+    #     generated_sequence = []
+    #     total_loss = 0
 
-        # finish first forward          
-        last_hidden_state = self.first_forward(batch_prompt, batch_ts)
+    #     # finish first forward          
+    #     last_hidden_state = self.first_forward(batch_prompt, batch_ts)
 
-        # The first token should be a chosen algo
-        algo_logits = self.get_logits(last_hidden_state[:, -1, :])
-        masked_logits = torch.full_like(algo_logits, float('-inf'))
-        masked_logits[:, self.custom_token_indices] = algo_logits[:, self.custom_token_indices]
-        probabilities = F.softmax(masked_logits, dim=-1)
-        # Sample next token for each item in the batch (dim=0 for batch size)
-        next_token = torch.multinomial(probabilities, 1)[:, 0].tolist()  # shape: (batch_size,)
-        generated_sequence.extend(next_token)
-        algo_token_id = next_token
+    #     # The first token should be a chosen algo
+    #     algo_logits = self.get_logits(last_hidden_state[:, -1, :])
+    #     masked_logits = torch.full_like(algo_logits, float('-inf'))
+    #     masked_logits[:, self.custom_token_indices] = algo_logits[:, self.custom_token_indices]
+    #     probabilities = F.softmax(masked_logits, dim=-1)
+    #     # Sample next token for each item in the batch (dim=0 for batch size)
+    #     next_token = torch.multinomial(probabilities, 1)[:, 0].tolist()  # shape: (batch_size,)
+    #     generated_sequence.extend(next_token)
+    #     algo_token_id = next_token
 
         
 
-        for t in range(50):
-            next_embedding = self.llm_model.get_input_embeddings()(torch.tensor(next_token).to(self.device))
-            # next_embedding shape needs to match last_hidden_state
-            next_embedding = next_embedding.unsqueeze(dim=1)  # shape: (batch_size, 1, hidden_size)
+    #     for t in range(50):
+    #         next_embedding = self.llm_model.get_input_embeddings()(torch.tensor(next_token).to(self.device))
+    #         # next_embedding shape needs to match last_hidden_state
+    #         next_embedding = next_embedding.unsqueeze(dim=1)  # shape: (batch_size, 1, hidden_size)
 
-            input_tensor = torch.cat([last_hidden_state, next_embedding], dim=1)
+    #         input_tensor = torch.cat([last_hidden_state, next_embedding], dim=1)
 
-            last_hidden_state = self.llm_model(inputs_embeds=input_tensor).last_hidden_state
+    #         last_hidden_state = self.llm_model(inputs_embeds=input_tensor).last_hidden_state
         
-            # set a token in max probabilities
-            logits = self.get_logits(last_hidden_state[:, -1, :])
+    #         # set a token in max probabilities
+    #         logits = self.get_logits(last_hidden_state[:, -1, :])
 
-            probabilities = F.softmax(logits, dim=-1) # (batch_size, vocab_size)
-            next_token = torch.multinomial(probabilities, 1)[:, 0].tolist()  # shape: (batch_size,)
-            generated_sequence.extend(next_token)
+    #         probabilities = F.softmax(logits, dim=-1) # (batch_size, vocab_size)
+    #         next_token = torch.multinomial(probabilities, 1)[:, 0].tolist()  # shape: (batch_size,)
+    #         generated_sequence.extend(next_token)
 
-            # if EOS
-            if next_token == self.tokenizer.eos_token_id:
-                break
+    #         # if EOS
+    #         if next_token == self.tokenizer.eos_token_id:
+    #             break
             
 
-            # Compute the loss for the current token in training mode
-            if mode == "train" and batch_label is not None:
-                token_label = batch_label[:, t+1]  # Get the label for the current token (shifted by 1)
-                token_loss = F.cross_entropy(logits, token_label)  # Cross-entropy loss
-                total_loss += token_loss
+    #         # Compute the loss for the current token in training mode
+    #         if mode == "train" and batch_label is not None:
+    #             token_label = batch_label[:, t+1]  # Get the label for the current token (shifted by 1)
+    #             token_loss = F.cross_entropy(logits, token_label)  # Cross-entropy loss
+    #             total_loss += token_loss
 
-        # sequence_loss = self.loss_fcn(logits.view(-1, self.vocab_size), batch_label[:, 1:].view(-1))  # 后续 tokens
+    #     # sequence_loss = self.loss_fcn(logits.view(-1, self.vocab_size), batch_label[:, 1:].view(-1))  # 后续 tokens
 
-        # In 'train' mode, return the total loss
-        if mode == "train":
-            return total_loss
-        else:
-            # In inference mode, return the generated sequence
-            return algo_token_id, generated_sequence
+    #     # In 'train' mode, return the total loss
+    #     if mode == "train":
+    #         return total_loss
+    #     else:
+    #         # In inference mode, return the generated sequence
+    #         return algo_token_id, generated_sequence
     
 
     def get_logits(self,last_hidden_state):

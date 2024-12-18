@@ -61,7 +61,7 @@ def standard_prompt_filled():
     return prompt
 
 
-def handle_csv(file, model,chunk_size = 15):
+def handle_csv(file, model,chunk_size = 5):
     # time_stamp,bit_rate,buffer_size,rebuffer_time,chunk_size,download_time,smoothness,model,reward,bw_change,bandwidth_utilization,bitrate_smoothness,rebuf_time_ratio
     all = pd.read_csv(file)
     
@@ -76,8 +76,7 @@ def handle_csv(file, model,chunk_size = 15):
     actions = [model] * num_segments
 
     states = []
-    returns = []
-    
+    rewards = []
     # 每15条一个记录，计算出分割的点。
     for i in range(num_segments):
         start_row = i * chunk_size
@@ -85,9 +84,9 @@ def handle_csv(file, model,chunk_size = 15):
         segment = all.iloc[start_row:end_row]  # 切片
         
 
-        # return 
+        # reward 
         reward_sum = segment['reward'].sum()
-        returns.append(reward_sum)
+        rewards.append(reward_sum)
 
 
         # state
@@ -103,7 +102,7 @@ def handle_csv(file, model,chunk_size = 15):
     
     
 
-    return states,actions,returns,dones
+    return states,actions,rewards,dones
 
 
 
@@ -116,14 +115,14 @@ if __name__ == '__main__':
     # init dataset pool class
     dataset_pool = _DatasetPool()
 
-    # 准备所有的state,action,return 存储进入数据集
+    # 准备所有的state,action,reward 存储进入数据集
     for algorithm_folder in os.listdir(base_dir): 
         folder_path = os.path.join(base_dir, algorithm_folder+'/seed_100003')
         for file in os.listdir(folder_path):
             if file.endswith(".csv"):  # 筛选出CSV文件
                 file_path = os.path.join(folder_path, file)
-                states, actions, returns, dones = handle_csv(file_path,algorithm_folder)
-                dataset_pool.extend(states, actions, returns, dones)
+                states, actions, rewards, dones = handle_csv(file_path,algorithm_folder)
+                dataset_pool.extend(states, actions, rewards, dones)
 
 
 

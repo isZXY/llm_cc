@@ -275,3 +275,25 @@ class DatasetEmbedding(nn.Module):
             bs, -1, llm_embed_size)
 
         return reprogramming_enc_out
+
+
+class ActionEmbedding(nn.Module):
+    def __init__(self,plm_embed_size,device):
+        self.embed_action = nn.Linear(1, plm_embed_size).to(device)
+
+    def forward(self,actions):
+        return self.embed_action(actions)
+
+class ReturnEmbedding(nn.Module):
+    def __init__(self,plm_embed_size,device):
+        self.embed_return = nn.Linear(1, plm_embed_size).to(device)
+
+    def forward(self,returns):
+        return self.embed_return(returns)
+
+class TimeEmbedding(nn.Module):
+    def __init__(self,plm_embed_size,device,max_ep_len):
+        self.embed_timestep = nn.Embedding(max_ep_len + 1, plm_embed_size).to(device)
+
+    def forward(self,timesteps):
+        return self.embed_timestep(timesteps)
