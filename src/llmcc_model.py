@@ -2,7 +2,7 @@ import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from dataset_input_embedding import DatasetEmbedding,ActionEmbedding,ReturnEmbedding,TimeEmbedding
+from dataset_input_embedding import StateEmbedding,ActionEmbedding,ReturnEmbedding,TimeEmbedding
 from pretrained_model import PretrainedLanguageModel
 from peft import get_peft_model, LoraConfig
 from token_config import TokenConfig
@@ -101,6 +101,7 @@ class Model(nn.Module):
         # Load Model
         model = PretrainedLanguageModel(
             model_name='llama', model_path=plm_path, device=device)
+        self.plm_embed_size = 4096
         self.tokenizer, self.llm_model = model.get_model()
         for param in self.llm_model.parameters():
             param.requires_grad = False
@@ -112,11 +113,14 @@ class Model(nn.Module):
         # set PEFT LoRA
         self.llm_model = self.__set_peft_model(rank=32)
 
-        # set first-time input embedding layer
-        self.action_embedding = ActionEmbedding(plm_embed_size,device)
+        # set input embedding layer
+        self.action_embedding = ActionEmbedding(self.plm_embed_size,self.device)
+        self.return_embedding = ReturnEmbedding(self.plm_embed_size,self.device)
+        self.time_embedding = TimeEmbedding(self.plm_embed_size,self.device,8)
 
 
-        self.input_embedding_layer = DatasetEmbedding(
+
+        self.state_embedding_layer = StateEmbedding(
             self.tokenizer, self.llm_model, self.device)
 
         # ## set output project layer
@@ -129,7 +133,7 @@ class Model(nn.Module):
 
         # Set modules except llm:TODO
         self.modules_except_llm = nn.ModuleList([
-            self.input_embedding_layer.vocab_mapping_to_prototype_layer, self.input_embedding_layer.patch_embedding, self.input_embedding_layer.normalize_layers, self.input_embedding_layer.reprogramming_layer, self.output_projection
+            self.state_embedding_layer.vocab_mapping_to_prototype_layer, self.state_embedding_layer.patch_embedding, self.state_embedding_layer.normalize_layers, self.state_embedding_layer.reprogramming_layer, self.output_projection
         ])
 
         self.custom_token_indices = model.get_custom_token_indices()
@@ -160,6 +164,21 @@ class Model(nn.Module):
         self.modules_except_llm.load_state_dict(torch.load(
             os.path.join(checkpoint_path, 'modules_except_plm.pth')))
 
+    def forward(self,states, actions, returns, timesteps, labels):
+        # 1.1 embed action, return, timestep
+                action_embeddings = self.action_embedding(actions)  # shape: (1, seq_len, embed_size)
+                returns_embeddings = self.return_embedding(returns)  # shape: (1, seq_len, embed_size)
+                time_embeddings = self.time_embedding(timesteps)  # shape: (1, seq_len, embed_size)
+
+                # 1.2 time embeddings are treated similar to positional embeddings
+                action_embeddings = action_embeddings + time_embeddings
+                returns_embeddings = returns_embeddings + time_embeddings
+
+                # Step 2: process states, turn them into embeddings.
+                state_embedding = self.state_embedding_layer(states)
+
+                
+            
 
     # def first_forward(self, batch_prompt, batch_ts):
     #     '''

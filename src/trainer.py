@@ -75,29 +75,19 @@ class Trainer:
             for i, batch in tqdm(enumerate(self.train_loader)):
                 states, actions, returns, timesteps, labels = process_batch(batch)
                 
+                
+                
                 pass
 
-                # 1.1 embed action, return, timestep
-                action_embeddings = self.embed_action(actions)  # shape: (1, seq_len, embed_size)
-                returns_embeddings = self.embed_return(returns)  # shape: (1, seq_len, embed_size)
-                time_embeddings = self.embed_timestep(timesteps)  # shape: (1, seq_len, embed_size)
-
-                # 1.2 time embeddings are treated similar to positional embeddings
-                action_embeddings = action_embeddings + time_embeddings
-                returns_embeddings = returns_embeddings + time_embeddings
-
-
-
-                # Step 2: process states, turn them into embeddings.
-
+                
 
                 
-                # self.global_step += 1
-                # self.model.train()
+                self.global_step += 1
+                self.model.train()
 
-                # self.optimizer.zero_grad()
+                self.optimizer.zero_grad()
 
-                # total_loss = self.model(batch_prompt, batch_ts, batch_label, mode="train")
+                total_loss = self.model(states, actions, returns, timesteps, labels)
 
                 # self.boardwriter.add_scalar(
                 #     'iter Loss/train', total_loss.item(), self.global_step)

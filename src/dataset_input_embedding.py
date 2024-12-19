@@ -187,13 +187,14 @@ class _Normalize(nn.Module):
         return x
 
 
-class DatasetEmbedding(nn.Module):
+class StateEmbedding(nn.Module):
     '''
     Tokenize dataset for use.
     '''
 
     def __init__(self, tokenizer, llm_model, device):
-        super(DatasetEmbedding, self).__init__()
+
+        super(StateEmbedding, self).__init__()
 
         # set training device
         self.device = device
@@ -230,17 +231,25 @@ class DatasetEmbedding(nn.Module):
         self.reprogramming_layer = _ReprogrammingLayer(
             self.device, self.d_model, self.n_heads, self.d_ff, self.d_llm)
 
-    def forward(self, prompt, ts):
-        dataset_concat_embedding = self.dataset_embedding(prompt, ts)
+    def forward(self, state_ts, prompt=None):
+        if prompt== None:
+            dataset_concat_embedding = self.state_embedding(state_ts)
+        else:
+            dataset_concat_embedding = self.state_embedding(state_ts,prompt)
         return dataset_concat_embedding
 
-    def dataset_embedding(self, prompt, ts):
-        # extract dataset to single data
-        prompt_embeddings = self.__natural_language_embedding(prompt)
-        ts_embeddings = self.__time_series_embedding(ts)
+    def state_embedding(self,state_ts,prompt =None):
 
-        dataset_concat_embedding = torch.cat(
-            [prompt_embeddings, ts_embeddings], dim=1)
+        # state: (1,8,5,10) -> 8是要concat起来的变量，5 是past 5 chunk 10 是维度
+        ts_embeddings = self.__time_series_embedding(state_ts)
+        dataset_concat_embedding = ts_embeddings
+
+        # extract dataset to single data
+        if prompt is not None:
+            prompt_embeddings = self.__natural_language_embedding(prompt)
+
+            dataset_concat_embedding = torch.cat(
+                [prompt_embeddings, ts_embeddings], dim=1)
 
         return dataset_concat_embedding
 
@@ -279,13 +288,17 @@ class DatasetEmbedding(nn.Module):
 
 class ActionEmbedding(nn.Module):
     def __init__(self,plm_embed_size,device):
+        super(ActionEmbedding, self).__init__()
+
         self.embed_action = nn.Linear(1, plm_embed_size).to(device)
 
     def forward(self,actions):
+        actions = actions.float() 
         return self.embed_action(actions)
 
 class ReturnEmbedding(nn.Module):
     def __init__(self,plm_embed_size,device):
+        super(ReturnEmbedding, self).__init__()
         self.embed_return = nn.Linear(1, plm_embed_size).to(device)
 
     def forward(self,returns):
@@ -293,6 +306,7 @@ class ReturnEmbedding(nn.Module):
 
 class TimeEmbedding(nn.Module):
     def __init__(self,plm_embed_size,device,max_ep_len):
+        super(TimeEmbedding, self).__init__()
         self.embed_timestep = nn.Embedding(max_ep_len + 1, plm_embed_size).to(device)
 
     def forward(self,timesteps):

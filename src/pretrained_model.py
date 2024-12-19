@@ -7,7 +7,7 @@ class PretrainedLanguageModel:
         self.device = device
         if model_name == "llama":
             
-            self.plm_embed_sizes = 4096
+            
 
             # Load Pretrained Model
             self.llm_model = LlamaModel.from_pretrained(
