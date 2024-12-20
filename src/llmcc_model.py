@@ -166,13 +166,16 @@ class Model(nn.Module):
 
     def forward(self,states, actions, returns, timesteps, labels):
         # 1.1 embed action, return, timestep
-                action_embeddings = self.action_embedding(actions)  # shape: (1, seq_len, embed_size)
-                returns_embeddings = self.return_embedding(returns)  # shape: (1, seq_len, embed_size)
-                time_embeddings = self.time_embedding(timesteps)  # shape: (1, seq_len, embed_size)
+                action_embeddings = self.action_embedding(actions)  # shape: (1, seq_len, embed_size) (1,8,4096)
+                returns_embeddings = self.return_embedding(returns)  # shape: (1, seq_len, embed_size)(1,8,4096)
+                time_embeddings = self.time_embedding(timesteps)  # shape: (1, seq_len, embed_size)(1,8,1,4096)
+                
 
                 # 1.2 time embeddings are treated similar to positional embeddings
                 action_embeddings = action_embeddings + time_embeddings
                 returns_embeddings = returns_embeddings + time_embeddings
+
+                
 
                 # Step 2: process states, turn them into embeddings.
                 state_embedding = self.state_embedding_layer(states)

@@ -31,10 +31,10 @@ def process_batch(batch, device='cpu'):
     Process batch of data.
     """
     states, actions, returns, timesteps = batch
+    # now states shape:  (1, 4,5) (features, decision_interval_per_record)
+    states = torch.cat(states, dim=0).unsqueeze(0).float().to(device)  # (1,8,4,5)
 
-    states = torch.cat(states, dim=0).unsqueeze(0).float().to(device)
-
-    actions = [label_to_index[action[0]] for action in actions]  # 转换为索引
+    actions = [label_to_index[action[0]] for action in actions]  # 转换为索引 (1,8,1)
     actions = torch.tensor(actions, dtype=torch.long, device=device).unsqueeze(0)
     actions = actions.unsqueeze(-1)
     labels = actions.clone()  # 离散动作的标签，用于分类损失

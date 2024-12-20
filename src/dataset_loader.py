@@ -45,7 +45,7 @@ class _ABRDataset(Dataset):
         :param exp_pool: the experience pool
         :param gamma: the reward discounted factor
         :param scale: the factor to scale the return
-        :param max_length: the w value in our paper, see the paper for details.
+        :param max_length: the max length of past features
         """
         if sample_step is None:
             sample_step = max_length

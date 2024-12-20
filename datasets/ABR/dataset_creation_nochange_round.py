@@ -61,12 +61,12 @@ def standard_prompt_filled():
     return prompt
 
 
-def handle_csv(file, model,chunk_size = 5):
+def handle_csv(file, model,decision_interval_per_record = 5):
     # time_stamp,bit_rate,buffer_size,rebuffer_time,chunk_size,download_time,smoothness,model,reward,bw_change,bandwidth_utilization,bitrate_smoothness,rebuf_time_ratio
     all = pd.read_csv(file)
     
     total_rows = len(all)
-    num_segments = math.floor(total_rows / chunk_size) # 多余的忽略
+    num_segments = math.floor(total_rows / decision_interval_per_record) # 多余的忽略
     
     # done record
     dones = [False]* (num_segments-1)
@@ -75,12 +75,16 @@ def handle_csv(file, model,chunk_size = 5):
     # action
     actions = [model] * num_segments
 
+
+
+    S_INFO =4
+    S_LEN = decision_interval_per_record  # take how many frames in the past
     states = []
     rewards = []
-    # 每15条一个记录，计算出分割的点。
+    # 每5条一个记录，计算出分割的点。
     for i in range(num_segments):
-        start_row = i * chunk_size
-        end_row = start_row + chunk_size  # 结束行索引
+        start_row = i * decision_interval_per_record
+        end_row = start_row + decision_interval_per_record  # 结束行索引
         segment = all.iloc[start_row:end_row]  # 切片
         
 
@@ -90,15 +94,46 @@ def handle_csv(file, model,chunk_size = 5):
 
 
         # state
+        state = np.zeros((S_INFO, S_LEN), dtype=np.float32)
         target_columns = [
             'bit_rate', 'buffer_size', 'rebuffer_time', 'chunk_size', 'download_time',
             'smoothness', 'bw_change', 'bandwidth_utilization', 'bitrate_smoothness', 'rebuf_time_ratio'
         ]
 
-        segment_array = segment[target_columns].fillna(0).to_numpy()
-        # 转换为 PyTorch Tensor
-        tensor = torch.tensor(segment_array, dtype=torch.float32)
-        states.append(tensor)
+
+
+        VIDEO_BIT_RATE = [300, 750, 1200, 1850, 2850, 4300]  # Kbps
+        BUFFER_NORM_FACTOR = 10.0
+        CHUNK_TIL_VIDEO_END_CAP = 48.0
+        BITRATE_LEVELS = 6
+        M_IN_K = 1000.0
+
+        bit_rate = segment['bit_rate'].fillna(0).to_numpy()
+        buffer_size = segment['buffer_size'].fillna(0).to_numpy()
+        chunk_size = segment['chunk_size'].fillna(0).to_numpy()
+        delay = segment['download_time'].fillna(0).to_numpy()
+        # next_video_chunk_sizes = segment
+        # video_chunk_remain = segment
+
+        
+        # 对 bit_rate 执行归一化处理
+        state[0] = bit_rate / np.max(VIDEO_BIT_RATE)  # 对应 bit_rate 的归一化处理
+
+        # 对 buffer_size 进行规范化
+        state[1] = buffer_size / BUFFER_NORM_FACTOR  # 对应 buffer_size 的规范化处理
+
+        # 对 chunk_size 和 delay 计算比值
+        state[2] = (chunk_size / delay) / M_IN_K  # 对应 chunk_size / delay 的计算
+
+        # 对 delay 进行规范化
+        state[3] = (delay / M_IN_K) / BUFFER_NORM_FACTOR  # 对应 delay 的规范化处理
+        # state[4]= np.array(next_video_chunk_sizes) / M_IN_K / M_IN_K  # mega byte
+        # state[5] = np.minimum(video_chunk_remain, CHUNK_TIL_VIDEO_END_CAP) / float(CHUNK_TIL_VIDEO_END_CAP)
+
+        # segment_array = segment[target_columns].fillna(0).to_numpy()
+        # # 转换为 PyTorch Tensor
+        # tensor = torch.tensor(segment_array, dtype=torch.float32)
+        states.append(state) # tensor shape: (5,10) (decision_interval_per_record , features)
     
     
 
@@ -128,4 +163,5 @@ if __name__ == '__main__':
 
     # 组成pair，作为数据对并导出
     dataset_pool_output = '/data3/wuduo/xuanyu/llmcc/datasets/ABR/dataset_pool_ABR.pkl'
+
     pickle.dump(dataset_pool, open(dataset_pool_output, 'wb'))

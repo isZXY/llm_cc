@@ -213,19 +213,19 @@ class StateEmbedding(nn.Module):
 
         # Patch Embedding
         self.d_model = 16  # patch模型的隐藏层维度
-        self.patch_len = 16  # patch 长度
-        self.stride = 8  # 步幅
+        self.patch_len = 4  # patch 长度
+        self.stride = 2  # 步幅
         self.dropout_rate = .1  # dropout rate
         self.patch_embedding = _PatchEmbedding(
             self.d_model, self.patch_len, self.stride, self.dropout_rate, self.device)
 
         # Normalize layer
-        self.feature_dimension = 7
+        self.feature_dimension = 5
         self.normalize_layers = _Normalize(
             self.feature_dimension, affine=False)
 
         # Reprogramming layer
-        self.n_heads = 8
+        self.n_heads = 5
         self.d_ff = 32  # dimension of fcn
         self.d_llm = 4096  # dimension of llm model,LLama7b:4096; GPT2-small:768; BERT-base:768
         self.reprogramming_layer = _ReprogrammingLayer(
@@ -239,10 +239,16 @@ class StateEmbedding(nn.Module):
         return dataset_concat_embedding
 
     def state_embedding(self,state_ts,prompt =None):
+        # state: input(1,8,4,5) (batch_size,episode,features,decision_interval)-> (1,8,4096) (1, seq_len, embed_size)
+        splits = torch.split(state_ts, 1, dim=2)
+        squeezed_splits = [split.squeeze(dim=2) for split in splits]
+        ts_embeddings = []
+        for i, state in enumerate(squeezed_splits):
+            ts_embedding = self.__time_series_embedding(state)
+            ts_embeddings.append(ts_embedding)
 
-        # state: (1,8,5,10) -> 8是要concat起来的变量，5 是past 5 chunk 10 是维度
-        ts_embeddings = self.__time_series_embedding(state_ts)
-        dataset_concat_embedding = ts_embeddings
+        stacked_state = torch.cat(ts_embeddings, dim=1)
+
 
         # extract dataset to single data
         if prompt is not None:
@@ -310,4 +316,6 @@ class TimeEmbedding(nn.Module):
         self.embed_timestep = nn.Embedding(max_ep_len + 1, plm_embed_size).to(device)
 
     def forward(self,timesteps):
-        return self.embed_timestep(timesteps)
+        x = self.embed_timestep(timesteps).squeeze(dim=2)
+
+        return x
