@@ -145,7 +145,7 @@ def handle_csv(file, model,decision_interval_per_record = 5):
 
 if __name__ == '__main__':
     # set dataset path & extracted_info
-    algorithm_names = ['bba', 'genet', 'mpc', 'udr_1', 'udr_2', 'udr_3']
+    algorithm_names = ['bba', 'genet', 'mpc', 'udr_1', 'udr_2', 'udr_3','udr_real']
 
     # init dataset pool class
     dataset_pool = _DatasetPool()

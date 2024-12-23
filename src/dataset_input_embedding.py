@@ -213,8 +213,8 @@ class StateEmbedding(nn.Module):
 
         # Patch Embedding
         self.d_model = 16  # patch模型的隐藏层维度
-        self.patch_len = 4  # patch 长度
-        self.stride = 2  # 步幅
+        self.patch_len = 2  # patch 长度
+        self.stride = 1  # 步幅
         self.dropout_rate = .1  # dropout rate
         self.patch_embedding = _PatchEmbedding(
             self.d_model, self.patch_len, self.stride, self.dropout_rate, self.device)
@@ -247,9 +247,9 @@ class StateEmbedding(nn.Module):
             ts_embedding = self.__time_series_embedding(state)
             ts_embeddings.append(ts_embedding)
 
-        stacked_state = torch.cat(ts_embeddings, dim=1)
+        # stacked_state = torch.cat(ts_embeddings, dim=1)
 
-
+        dataset_concat_embedding = ts_embeddings
         # extract dataset to single data
         if prompt is not None:
             prompt_embeddings = self.__natural_language_embedding(prompt)

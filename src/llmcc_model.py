@@ -6,6 +6,8 @@ from dataset_input_embedding import StateEmbedding,ActionEmbedding,ReturnEmbeddi
 from pretrained_model import PretrainedLanguageModel
 from peft import get_peft_model, LoraConfig
 from token_config import TokenConfig
+import numpy as np
+
 
 class _CategoryProjection(nn.Module):
     def __init__(self, hidden_size, num_classes,device):
@@ -118,10 +120,12 @@ class Model(nn.Module):
         self.return_embedding = ReturnEmbedding(self.plm_embed_size,self.device)
         self.time_embedding = TimeEmbedding(self.plm_embed_size,self.device,8)
 
-
-
         self.state_embedding_layer = StateEmbedding(
             self.tokenizer, self.llm_model, self.device)
+        
+        self.embed_ln = nn.LayerNorm(self.plm_embed_size).to(device)
+        self.action_head = nn.Linear(self.plm_embed_size,7)
+
 
         # ## set output project layer
         # # self.output_projection = _CategoryProjection(
@@ -164,8 +168,8 @@ class Model(nn.Module):
         self.modules_except_llm.load_state_dict(torch.load(
             os.path.join(checkpoint_path, 'modules_except_plm.pth')))
 
-    def forward(self,states, actions, returns, timesteps, labels):
-        # 1.1 embed action, return, timestep
+    def forward(self,states, actions, returns, timesteps, labels,attention_mask=None):
+                # 1.1 embed action, return, timestep
                 action_embeddings = self.action_embedding(actions)  # shape: (1, seq_len, embed_size) (1,8,4096)
                 returns_embeddings = self.return_embedding(returns)  # shape: (1, seq_len, embed_size)(1,8,4096)
                 time_embeddings = self.time_embedding(timesteps)  # shape: (1, seq_len, embed_size)(1,8,1,4096)
@@ -175,11 +179,72 @@ class Model(nn.Module):
                 action_embeddings = action_embeddings + time_embeddings
                 returns_embeddings = returns_embeddings + time_embeddings
 
-                
 
                 # Step 2: process states, turn them into embeddings.
-                state_embedding = self.state_embedding_layer(states)
+                states_embedding_list = self.state_embedding_layer(states)
 
+                
+                # Step 3: stack returns, states, actions embeddings.
+                # this makes the sequence look like (R_1, s_1-1, s_1-2, ..., s_1-n, a_1, R_2, s_2-1, ..., s_2-m, a_2, ...)
+                # which works nice in an autoregressive sense since states predict actions
+                stacked_inputs = []
+                action_embed_positions = np.zeros(returns_embeddings.shape[1])  # record the positions of action embeddings
+                
+                for i in range(returns_embeddings.shape[1]):
+                    stacked_input = torch.cat((returns_embeddings[0, i:i + 1], states_embedding_list[0][0, i:i + 5], states_embedding_list[1][0, i:i + 5], states_embedding_list[2][0, i:i + 5],states_embedding_list[3][0, i:i + 5],action_embeddings[0, i:i + 1]), dim=0)
+                    stacked_inputs.append(stacked_input)
+                    action_embed_positions[i] = (i + 1) * (2 + 4*5)
+                stacked_inputs = torch.cat(stacked_inputs, dim=0).unsqueeze(0)
+                stacked_inputs = stacked_inputs[:, -self.plm_embed_size:, :]  # truncate sequence length (should not exceed plm embed size)
+                stacked_inputs_ln = self.embed_ln(stacked_inputs)  # layer normalization
+                
+                # Step 4: feed stacked embeddings into the plm
+                # 4.1 create attention mask
+                if attention_mask is None:
+                    # 1 if can be attended to, 0 if not
+                    attention_mask = torch.ones((stacked_inputs_ln.shape[0], stacked_inputs_ln.shape[1]), dtype=torch.long, device=self.device)
+
+                last_hidden_state = self.llm_model(
+                    inputs_embeds=stacked_inputs_ln,
+                    attention_mask=attention_mask,
+                    output_hidden_states=True,
+                    )
+
+                logits = last_hidden_state['last_hidden_state']
+                logits_used = logits[:, action_embed_positions - 2]
+                action_pred = self.action_head(logits_used)
+
+                return action_pred
+                # algo_logits = self.get_logits(last_hidden_state[:, -1, :])
+                # masked_logits = torch.full_like(algo_logits, float('-inf'))
+                # masked_logits[:, self.custom_token_indices] = algo_logits[:, self.custom_token_indices]
+                # probabilities = F.softmax(masked_logits, dim=-1)
+                # # Sample next token for each item in the batch (dim=0 for batch size)
+                # next_token = torch.multinomial(probabilities, 1)[:, 0].tolist()  # shape: (batch_size,)
+                # print(next_token)
+
+
+                # return stacked_inputs_ln, attention_mask
+    
+    
+                # # we feed in the input embeddings (not word indices as in NLP) to the model
+                # transformer_outputs = self.plm(
+                #     inputs_embeds=stacked_inputs_ln,
+                #     attention_mask=attention_mask,
+                #     output_hidden_states=True,
+                #     stop_layer_idx=self.which_layer,
+                # )
+                # logits = transformer_outputs['last_hidden_state']
+                # if self.residual:
+                #     logits = logits + stacked_inputs_ln  # residual add
+
+                # # Step 5: predict actions
+                # # we need to locate the logits corresponding to the state embeddings
+                # # simply using `action_embed_positions[i] - 2` will do.
+                # logits_used = logits[:, action_embed_positions - 2]
+                # action_pred = self.action_head(logits_used)
+
+                # return action_pred
                 
             
 

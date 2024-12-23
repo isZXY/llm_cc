@@ -15,8 +15,7 @@ label_to_index = {
     "udr_3": 3,
     "udr_real": 4,
     "mpc": 5,
-    "bba": 6,
-    "mixed": 7
+    "bba": 6
 }
 
 
@@ -75,41 +74,47 @@ class Trainer:
             for i, batch in tqdm(enumerate(self.train_loader)):
                 states, actions, returns, timesteps, labels = process_batch(batch)
                 
-                
-                
-                pass
-
-                
-
-                
                 self.global_step += 1
                 self.model.train()
 
                 self.optimizer.zero_grad()
 
-                total_loss = self.model(states, actions, returns, timesteps, labels)
+                logits = self.model(states, actions, returns, timesteps, labels)
+                
+                predicted_action_indices = torch.argmax(logits, dim=-1)  # 形状为 (1, 8)
+                predicted_actions = [index_to_label[idx.item()] for idx in predicted_action_indices[0]]
+                
+                logits = logits.permute(0, 2, 1)  # 调整形状为 (batch_size, num_classes, sequence_length)
 
-                # self.boardwriter.add_scalar(
-                #     'iter Loss/train', total_loss.item(), self.global_step)
+                # logits = logits.squeeze(0)[-1,:]  # 形状变为 (8, 8)，去掉 batch size 维度
+                labels = labels.squeeze(-1)  # 形状变为 (8,) 真实标签
+                avtions_labels  = [index_to_label[idx.item()] for idx in labels[0]]
+                # print('choose' + index_to_label[predict_result])
+                
+                loss = self.loss_fcn(logits, labels)
 
-                # loss.backward()
-                # self.optimizer.step()
+                print('predicted:',predicted_actions, 'label:',avtions_labels,'loss:',loss.item())
+                self.boardwriter.add_scalar(
+                    'iter Loss/train', loss.item(), self.global_step)
 
-                # if self.global_step % 500 == 0:
-                #     self.model.save_model(os.path.join(
-                #         self.checkpoint_save_path, 'checkpoint-{}'.format(self.global_step)))
+                loss.backward()
+                self.optimizer.step()
+
+                if self.global_step % 500 == 0:
+                    self.model.save_model(os.path.join(
+                        self.checkpoint_save_path, 'checkpoint-{}'.format(self.global_step)))
 
             # Validate
-            self.model.eval()
-            with torch.no_grad():
-                val_loss = 0.0
-                for batch_prompt, batch_ts, batch_label in tqdm(self.val_loader):
-                    logits = self.model(batch_prompt, batch_ts).squeeze()
-                    batch_label = batch_label.to(self.device)
-                    loss = self.loss_fcn(logits, batch_label)
-                    val_loss += loss.item()
-                self.boardwriter.add_scalar(
-                    'Epoch Loss/Validation', val_loss / len(self.val_loader), epoch)
+            # self.model.eval()
+            # with torch.no_grad():
+            #     val_loss = 0.0
+            #     for batch_prompt, batch_ts, batch_label in tqdm(self.val_loader):
+            #         logits = self.model(batch_prompt, batch_ts).squeeze()
+            #         batch_label = batch_label.to(self.device)
+            #         loss = self.loss_fcn(logits, batch_label)
+            #         val_loss += loss.item()
+            #     self.boardwriter.add_scalar(
+            #         'Epoch Loss/Validation', val_loss / len(self.val_loader), epoch)
 
-            self.model.save_model(os.path.join(
-                self.checkpoint_save_path, 'checkpoint-{}-eval-epoch{}'.format(self.global_step, epoch)))
+            # self.model.save_model(os.path.join(
+            #     self.checkpoint_save_path, 'checkpoint-{}-eval-epoch{}'.format(self.global_step, epoch)))
