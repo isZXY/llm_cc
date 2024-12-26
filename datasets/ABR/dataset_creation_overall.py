@@ -266,8 +266,8 @@ if __name__ == '__main__':
         for file in os.listdir(folder_path):
             if file.endswith(".csv"):  # 筛选出CSV文件
                 file_path = os.path.join(folder_path, file)
-                states, actions, rewards, dones = handle_csv_withchange(file_path)
                 if cal_maximum_cum_reward(file_path) >= percentile_90:
+                    states, actions, rewards, dones = handle_csv_withchange(file_path)
                     dataset_pool.extend(states, actions, rewards, dones)
 
     # 组成pair，作为数据对并导出
