@@ -6,9 +6,6 @@ class PretrainedLanguageModel:
     def __init__(self, model_name, model_path, device):
         self.device = device
         if model_name == "llama":
-            
-            
-
             # Load Pretrained Model
             self.llm_model = LlamaModel.from_pretrained(
                 model_path,

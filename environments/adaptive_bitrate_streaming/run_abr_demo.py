@@ -254,8 +254,7 @@ def run(args):
     result_path = os.path.join(results_dir, 'result_sim_abr_{}.csv'.format(all_file_names[net_env.trace_idx]))
     result_file = open(result_path, 'w',newline = '')
     csv_writer = csv.writer(result_file)
-    csv_writer.writerow(['time_stamp', 'bit_rate', 'buffer_size', 'rebuffer_time', 'chunk_size', 'download_time', 'smoothness', 'model', 'reward','bw_change','bandwidth_utilization','bitrate_smoothness','rebuf_time_ratio'])
-
+    csv_writer.writerow(['time_stamp', 'bit_rate', 'buffer_size', 'rebuffer_time', 'chunk_size', 'download_time', 'smoothness', 'model', 'reward','bw_change','bandwidth_utilization','bitrate_smoothness','rebuf_time_ratio','next_video_chunk_sizes','video_chunk_remain'])
     
 
     trace_indices = [net_env.trace_idx]
@@ -315,7 +314,7 @@ def run(args):
             #     print("change for {}".format(model))
 
 
-            if time_stamp > 4700 * M_IN_K and time_stamp < 4800 *M_IN_K:
+            if time_stamp > 4700 * M_IN_K and time_stamp < 4800 * M_IN_K:
                 sel_model = 'udr_3'
                 model = PENSIEVE
                 model_path = cfg.baseline_model_paths[sel_model]
@@ -366,7 +365,10 @@ def run(args):
                      bw_change,
                      bandwidth_utilization,
                      bitrate_smoothness,
-                     rebuf_time_ratio])
+                     rebuf_time_ratio,
+                     next_video_chunk_sizes,
+                     video_chunk_remain
+                     ])
             
 
 
@@ -407,7 +409,7 @@ def run(args):
 
                 csv_writer = csv.writer(result_file)
 
-                csv_writer.writerow(['time_stamp', 'bit_rate', 'buffer_size', 'rebuffer_time', 'chunk_size', 'download_time', 'smoothness', 'model', 'reward','bw_change','bandwidth_utilization','bitrate_smoothness','rebuf_time_ratio'])
+                csv_writer.writerow(['time_stamp', 'bit_rate', 'buffer_size', 'rebuffer_time', 'chunk_size', 'download_time', 'smoothness', 'model', 'reward','bw_change','bandwidth_utilization','bitrate_smoothness','rebuf_time_ratio','next_video_chunk_sizes','video_chunk_remain'])
 
                 trace_indices.append(net_env.trace_idx)
 

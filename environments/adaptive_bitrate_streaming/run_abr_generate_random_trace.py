@@ -251,7 +251,7 @@ def run(args):
     net_env = env.Environment(all_cooked_time=all_cooked_time, all_cooked_bw=all_cooked_bw, all_file_names=all_file_names, all_mahimahi_ptrs=all_mahimahi_ptrs,
                               video_size_dir=video_size_dir, fixed=args.fixed_order, trace_num=trace_num)
 
-    results_dir = os.path.join(cfg.results_dir, f'{args.test_trace}_{args.video}', f'trace_num_{trace_num}_fixed_{args.fixed_order}', args.model, f'seed_{args.seed}')
+    results_dir = os.path.join(args.output_dir, f'{args.test_trace}_{args.video}', f'trace_num_{trace_num}_fixed_{args.fixed_order}', args.model, f'seed_{args.seed}')
     os.makedirs(results_dir, exist_ok=True)
     clear_dir(results_dir)
 
@@ -354,7 +354,7 @@ def run(args):
                     model = MIXED
 
                 
-                print("chunk counter {} change for {}".format(chunk_counter,sel_model))
+                # print("chunk counter {} change for {}".format(chunk_counter,sel_model))
 
                     
             delay, sleep_time, buffer_size, rebuf, \
@@ -461,6 +461,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, help='random seed', default=100003)
     parser.add_argument('--cuda-id', type=int, help='cuda device idx', default=0)
     parser.add_argument('--fixed-order', action='store_true', help='iterate over test traces in a fixed sequential order.')
+    parser.add_argument('--output_dir', help='path_to_save')
     args = parser.parse_args()
     
 
@@ -486,3 +487,5 @@ if __name__ == '__main__':
     print(args)
 
     run(args)
+
+

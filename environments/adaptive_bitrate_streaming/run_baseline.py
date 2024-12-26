@@ -219,12 +219,16 @@ def run(args):
     
     if args.model in  ['genet', 'udr_1', 'udr_2', 'udr_3', 'udr_real']:
         model = PENSIEVE
+        sel_model = args.model
     elif args.model == 'mpc':
         model = MPC
+        sel_model = args.model
     elif args.model == 'bba':
         model = BBA
+        sel_model = args.model
     else:
         model = MIXED
+        sel_model = args.model
 
     trace_dir = cfg.trace_dirs[args.test_trace]
     video_size_dir = cfg.video_size_dirs[args.video]
@@ -250,8 +254,7 @@ def run(args):
     result_path = os.path.join(results_dir, 'result_sim_abr_{}.csv'.format(all_file_names[net_env.trace_idx]))
     result_file = open(result_path, 'w',newline = '')
     csv_writer = csv.writer(result_file)
-    csv_writer.writerow(['time_stamp', 'bit_rate', 'buffer_size', 'rebuffer_time', 'chunk_size', 'download_time', 'smoothness', 'model', 'reward','bw_change','bandwidth_utilization','bitrate_smoothness','rebuf_time_ratio'])
-
+    csv_writer.writerow(['time_stamp', 'bit_rate', 'buffer_size', 'rebuffer_time', 'chunk_size', 'download_time', 'smoothness', 'model', 'reward','bw_change','bandwidth_utilization','bitrate_smoothness','rebuf_time_ratio','next_video_chunk_sizes','video_chunk_remain'])
     
 
     trace_indices = [net_env.trace_idx]
@@ -300,18 +303,25 @@ def run(args):
         # counter = -1
         while True:  # serve video forever
             # counter += 1
-            # if model =='MIXED' or 3:
-            #     if counter % 7 == 0:
+            # if True:
+            #     if counter == 0:
             #         model = random.choice(['PENSIEVE', 'MPC', 'BBA'])
             #         print("change for {}".format(model))
+
+                    
             delay, sleep_time, buffer_size, rebuf, \
             video_chunk_size, next_video_chunk_sizes, \
             end_of_video, video_chunk_remain, bw_change, \
             bandwidth_utilization,bitrate_smoothness,rebuf_time_ratio = net_env.get_video_chunk(bit_rate)
 
 
+                    
+
             time_stamp += delay  # in ms
             time_stamp += sleep_time  # in ms
+
+
+
 
             # reward is video quality - rebuffer penalty - smoothness
             reward = VIDEO_BIT_RATE[bit_rate] / M_IN_K \
@@ -332,12 +342,15 @@ def run(args):
                      video_chunk_size,
                      delay,
                      smoothness,
-                     model_mapping[model],
+                     sel_model,
                      reward,
                      bw_change,
                      bandwidth_utilization,
                      bitrate_smoothness,
-                     rebuf_time_ratio])
+                     rebuf_time_ratio,
+                     next_video_chunk_sizes,
+                     video_chunk_remain
+                     ])
             
 
 
@@ -378,7 +391,7 @@ def run(args):
 
                 csv_writer = csv.writer(result_file)
 
-                csv_writer.writerow(['time_stamp', 'bit_rate', 'buffer_size', 'rebuffer_time', 'chunk_size', 'download_time', 'smoothness', 'model', 'reward','bw_change','bandwidth_utilization','bitrate_smoothness','rebuf_time_ratio'])
+                csv_writer.writerow(['time_stamp', 'bit_rate', 'buffer_size', 'rebuffer_time', 'chunk_size', 'download_time', 'smoothness', 'model', 'reward','bw_change','bandwidth_utilization','bitrate_smoothness','rebuf_time_ratio','next_video_chunk_sizes','video_chunk_remain'])
 
                 trace_indices.append(net_env.trace_idx)
 
@@ -396,7 +409,6 @@ if __name__ == '__main__':
     # [genet, udr_1, udr_2, udr_3, udr_real] are all Pensieve models but pretrained with different methods and settings.
     # Generally, genet is the first choice among the five.
     # parser.add_argument('--model', help='choose from [genet, udr_1, udr_2, udr_3, udr_real, mpc, bba]', default='genet')
-
     
     parser.add_argument("--test-trace", help='name of test traces (e.g., fcc-test)', default='fcc-test')
     parser.add_argument('--video', help='name of testing videos (e.g., video1)', default='video1')
@@ -409,14 +421,16 @@ if __name__ == '__main__':
 
     # 'genet', 'udr_1', 'udr_2', 'udr_3', 'udr_real', 'mpc', 'bba'
     # >>> debug <<<
-    args.model = 'bba'
+    args.model = 'udr_3'
     args.test_trace = 'fcc-test'
     args.video = 'video1'
     args.test_trace_num = 100
     args.seed = 100003
     args.fixed_order = True
-    # >>> debug <<<
 
+    # trace:1 genet, timestamp 4771前 -> udr2
+
+    # >>> debug <<<
     # command example:
     # (remember to first "conda activate abr_tf")
     # python run_baseline.py --model genet --test-trace fcc-test --video video1 --test-trace-num  100 --seed 100003 --cuda-id 0
