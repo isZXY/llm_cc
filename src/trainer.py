@@ -35,14 +35,14 @@ def process_batch(batch, device='cpu'):
 
     actions = [label_to_index[action[0]] for action in actions]  # 转换为索引 (1,8,1)
     actions = torch.tensor(actions, dtype=torch.long, device=device).unsqueeze(0)
-    actions = actions.unsqueeze(-1)
-    labels = actions.clone()  # 离散动作的标签，用于分类损失
+    actions = actions.unsqueeze(-1).to(device)  
+    labels = actions.clone().to(device)   # 离散动作的标签，用于分类损失
 
-    returns = torch.tensor(returns, dtype=torch.float32, device=device).reshape(1, -1, 1)
+    returns = torch.tensor(returns, dtype=torch.float32, device=device).reshape(1, -1, 1).to(device) 
 
     # 时间步处理
     timesteps = torch.tensor(timesteps, dtype=torch.int32, device=device).unsqueeze(0)
-    timesteps = timesteps.unsqueeze(-1)
+    timesteps = timesteps.unsqueeze(-1).to(device) 
     return states, actions, returns, timesteps, labels
 
 
@@ -72,7 +72,7 @@ class Trainer:
     def train(self):
         for epoch in range(self.train_epochs):
             for i, batch in tqdm(enumerate(self.train_loader)):
-                states, actions, returns, timesteps, labels = process_batch(batch)
+                states, actions, returns, timesteps, labels = process_batch(batch,self.device)
                 
                 self.global_step += 1
                 self.model.train()
@@ -88,12 +88,12 @@ class Trainer:
 
                 # logits = logits.squeeze(0)[-1,:]  # 形状变为 (8, 8)，去掉 batch size 维度
                 labels = labels.squeeze(-1)  # 形状变为 (8,) 真实标签
-                avtions_labels  = [index_to_label[idx.item()] for idx in labels[0]]
+                actions_labels  = [index_to_label[idx.item()] for idx in labels[0]]
                 # print('choose' + index_to_label[predict_result])
                 
                 loss = self.loss_fcn(logits, labels)
 
-                print('predicted:',predicted_actions, 'label:',avtions_labels,'loss:',loss.item())
+                print('predicted:',predicted_actions, 'label:',actions_labels,'loss:',loss.item())
                 self.boardwriter.add_scalar(
                     'iter Loss/train', loss.item(), self.global_step)
 
@@ -105,16 +105,20 @@ class Trainer:
                         self.checkpoint_save_path, 'checkpoint-{}'.format(self.global_step)))
 
             # Validate
-            # self.model.eval()
-            # with torch.no_grad():
-            #     val_loss = 0.0
-            #     for batch_prompt, batch_ts, batch_label in tqdm(self.val_loader):
-            #         logits = self.model(batch_prompt, batch_ts).squeeze()
-            #         batch_label = batch_label.to(self.device)
-            #         loss = self.loss_fcn(logits, batch_label)
-            #         val_loss += loss.item()
-            #     self.boardwriter.add_scalar(
-            #         'Epoch Loss/Validation', val_loss / len(self.val_loader), epoch)
+            self.model.eval()
+            with torch.no_grad():
+                val_loss = 0.0
+                for i, batch in tqdm(enumerate(self.val_loader)):
+                    states, actions, returns, timesteps, labels = process_batch(batch,self.device)
+                    logits = self.model(states, actions, returns, timesteps, labels)
+                    logits = logits.permute(0, 2, 1)  # 调整形状为 (batch_size, num_classes, sequence_length)
 
-            # self.model.save_model(os.path.join(
-            #     self.checkpoint_save_path, 'checkpoint-{}-eval-epoch{}'.format(self.global_step, epoch)))
+                    labels = labels.squeeze(-1)  # 形状变为 (8,) 真实标签
+
+                    loss = self.loss_fcn(logits, labels)
+                    val_loss += loss.item()
+                self.boardwriter.add_scalar(
+                    'Epoch Loss/Validation', val_loss / len(self.val_loader), epoch)
+
+            self.model.save_model(os.path.join(
+                self.checkpoint_save_path, 'checkpoint-{}-eval-epoch{}'.format(self.global_step, epoch)))

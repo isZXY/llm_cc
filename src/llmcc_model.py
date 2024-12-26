@@ -124,7 +124,7 @@ class Model(nn.Module):
             self.tokenizer, self.llm_model, self.device)
         
         self.embed_ln = nn.LayerNorm(self.plm_embed_size).to(device)
-        self.action_head = nn.Linear(self.plm_embed_size,7)
+        self.action_head = nn.Linear(self.plm_embed_size,7).to(device)
 
 
         # ## set output project layer
@@ -191,9 +191,9 @@ class Model(nn.Module):
                 action_embed_positions = np.zeros(returns_embeddings.shape[1])  # record the positions of action embeddings
                 
                 for i in range(returns_embeddings.shape[1]):
-                    stacked_input = torch.cat((returns_embeddings[0, i:i + 1], states_embedding_list[0][0, i:i + 5], states_embedding_list[1][0, i:i + 5], states_embedding_list[2][0, i:i + 5],states_embedding_list[3][0, i:i + 5],action_embeddings[0, i:i + 1]), dim=0)
+                    stacked_input = torch.cat((returns_embeddings[0, i:i + 1], states_embedding_list[0][0, i:i + 5], states_embedding_list[1][0, i:i + 5], states_embedding_list[2][0, i:i + 5],states_embedding_list[3][0, i:i + 5],states_embedding_list[4][0, i:i + 5],action_embeddings[0, i:i + 1]), dim=0)
                     stacked_inputs.append(stacked_input)
-                    action_embed_positions[i] = (i + 1) * (2 + 4*5)
+                    action_embed_positions[i] = (i + 1) * (2 + 5*5)
                 stacked_inputs = torch.cat(stacked_inputs, dim=0).unsqueeze(0)
                 stacked_inputs = stacked_inputs[:, -self.plm_embed_size:, :]  # truncate sequence length (should not exceed plm embed size)
                 stacked_inputs_ln = self.embed_ln(stacked_inputs)  # layer normalization
