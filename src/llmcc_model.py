@@ -137,7 +137,7 @@ class Model(nn.Module):
 
         # Set modules except llm:TODO
         self.modules_except_llm = nn.ModuleList([
-            self.state_embedding_layer.vocab_mapping_to_prototype_layer, self.state_embedding_layer.patch_embedding, self.state_embedding_layer.normalize_layers, self.state_embedding_layer.reprogramming_layer, self.output_projection
+            self.state_embedding_layer.vocab_mapping_to_prototype_layer, self.state_embedding_layer.patch_embedding, self.state_embedding_layer.normalize_layers, self.state_embedding_layer.reprogramming_layer, self.output_projection, self.action_head, self.embed_ln,self.action_embedding.embed_action, self.return_embedding.embed_return,self.time_embedding.embed_timestep
         ])
 
         self.custom_token_indices = model.get_custom_token_indices()
@@ -164,7 +164,7 @@ class Model(nn.Module):
             checkpoint_path, 'modules_except_plm.pth'))
 
     def load_model(self, checkpoint_path):
-        self.llm_model.load_adapter(checkpoint_path, adapter_name='deafult')
+        self.llm_model.load_adapter(checkpoint_path, adapter_name='default')
         self.modules_except_llm.load_state_dict(torch.load(
             os.path.join(checkpoint_path, 'modules_except_plm.pth')))
 
@@ -191,10 +191,10 @@ class Model(nn.Module):
                 action_embed_positions = np.zeros(returns_embeddings.shape[1])  # record the positions of action embeddings
                 
                 for i in range(returns_embeddings.shape[1]):
-                    stacked_input = torch.cat((returns_embeddings[0, i:i + 1], states_embedding_list[0][0, i:i + 5], states_embedding_list[1][0, i:i + 5], states_embedding_list[2][0, i:i + 5],states_embedding_list[3][0, i:i + 5],states_embedding_list[4][0, i:i + 5],action_embeddings[0, i:i + 1]), dim=0)
+                    stacked_input = torch.cat((returns_embeddings[:, i:i + 1], states_embedding_list[0][:, i:i + 5], states_embedding_list[1][:, i:i + 5], states_embedding_list[2][:, i:i + 5],states_embedding_list[3][:, i:i + 5],states_embedding_list[4][:, i:i + 5],action_embeddings[:, i:i + 1]), dim=1)
                     stacked_inputs.append(stacked_input)
                     action_embed_positions[i] = (i + 1) * (2 + 5*5)
-                stacked_inputs = torch.cat(stacked_inputs, dim=0).unsqueeze(0)
+                stacked_inputs = torch.cat(stacked_inputs, dim=1)
                 stacked_inputs = stacked_inputs[:, -self.plm_embed_size:, :]  # truncate sequence length (should not exceed plm embed size)
                 stacked_inputs_ln = self.embed_ln(stacked_inputs)  # layer normalization
                 
