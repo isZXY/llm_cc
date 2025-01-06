@@ -239,12 +239,16 @@ class StateEmbedding(nn.Module):
         return dataset_concat_embedding
 
     def state_embedding(self,state_ts,prompt =None):
-        # state: input(1,8,4,5) (batch_size,episode,features,decision_interval)-> (1,8,4096) (1, seq_len, embed_size)
-        splits = torch.split(state_ts, 1, dim=2)
-        squeezed_splits = [split.squeeze(dim=2) for split in splits]
+        # state: input(1,8,5,5) (batch_size,episode,features,decision_interval)-> (1,8,4096) (1, seq_len, embed_size)
+        splits = torch.split(state_ts, 1, dim=2) # 5个(1,8,1,5)
+        squeezed_splits = [split.squeeze(dim=2) for split in splits] # 五个　（1，8，5）
         ts_embeddings = []
         for i, state in enumerate(squeezed_splits):
             ts_embedding = self.__time_series_embedding(state)
+            ## ** use for test**
+            # state_temp = state[:,-1,:].unsqueeze(dim=1)
+            # ts_embedding = self.__time_series_embedding(state_temp)
+            ## ** use for test**
             ts_embeddings.append(ts_embedding)
 
         # stacked_state = torch.cat(ts_embeddings, dim=1)

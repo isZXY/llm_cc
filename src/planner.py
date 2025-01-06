@@ -7,6 +7,9 @@ import os
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
+from datetime import datetime
+import pytz
+
 label_to_index = {
     "genet": 0,
     "udr_1": 1,
@@ -23,33 +26,56 @@ label_to_index = {
 index_to_label = {v: k for k, v in label_to_index.items()}
 
 
-def process_batch(batch, device='cpu'):
+def process_batch(batch, batch_size,device='cpu'):
     """
     Process batch of data.
     """
-    states, actions, returns, timesteps = batch
-    # now states shape:  (1, 4,5) (features, decision_interval_per_record)
-    states = torch.cat(states, dim=0).unsqueeze(0).float().to(device)  # (1,8,4,5)
+    states, actions, returns, timesteps = batch 
+    # len([16,5,5]) =8 --->>  (16,8,5,5) (batch_size, window_length, features, decision_interval)
+    # states = torch.cat(states, dim=0).unsqueeze(1).float().to(device)  # (16,8,5,5)
+    states = torch.stack(states, dim=1).float().to(device)
 
-    actions = [label_to_index[action[0]] for action in actions]  # 转换为索引 (1,8,1)
-    actions = torch.tensor(actions, dtype=torch.long, device=device).unsqueeze(0)
-    actions = actions.unsqueeze(-1).to(device)  
-    labels = actions.clone().to(device)   # 离散动作的标签，用于分类损失
+    
 
-    returns = torch.tensor(returns, dtype=torch.float32, device=device).reshape(1, -1, 1).to(device) 
+    
+    # actions = [label_to_index[action[0]] for action in actions]  # 转换为索引  ->tensor形状(16,8,1)
+    # actions = torch.tensor(actions, dtype=torch.long, device=device).unsqueeze(0)
+    # actions = actions.unsqueeze(-1).to(device)  
+    try:
+        actions = torch.stack([
+            torch.tensor([label_to_index[action] for action in action_tuple], dtype=torch.long).view(batch_size, 1)
+            for action_tuple in actions
+        ], dim=1).float().to(device)
+    except Exception as e:
+        print(f"Error processing 'actions': {e}, skipping this batch.")
+        return None  # Return None or any signal indicating an error in 'actions'
 
+    labels = actions.clone().to(dtype=torch.int64).to(device)   # 离散动作的标签，用于分类损失
+
+    # returns = torch.tensor(returns, dtype=torch.float32, device=device).reshape(16, -1, 1).to(device) 
+    returns = torch.stack(returns, dim=1).unsqueeze(-1).float().to(device)
     # 时间步处理
-    timesteps = torch.tensor(timesteps, dtype=torch.int32, device=device).unsqueeze(0)
-    timesteps = timesteps.unsqueeze(-1).to(device) 
+
+    # timesteps = torch.tensor(timesteps, dtype=torch.int32, device=device).unsqueeze(0)
+    # timesteps = timesteps.unsqueeze(-1).to(device) 
+    timesteps = torch.stack(timesteps, dim=1).unsqueeze(-1).to(dtype=torch.int64).to(device)
+
     return states, actions, returns, timesteps, labels
 
-
 class Planner:
-    def __init__(self, model, checkpoint_save_path, device):
+    def __init__(self, model, checkpoint_save_path,batch_size, device):
         self.device = device
+        self.batch_size = batch_size
         self.model = model
         self.checkpoint_save_path = checkpoint_save_path
+        self.loss_fcn = nn.CrossEntropyLoss()
 
+        tz = pytz.timezone('Asia/Shanghai')  # 设置时区为北京时间
+        current_time = datetime.now(tz).strftime("%b%d_%H%M")
+
+        # 创建一个以当前时间命名的文件夹
+        log_dir = os.path.join('logs_test', current_time)
+        self.boardwriter = SummaryWriter(log_dir=log_dir)
 
     # def tokens_to_text(self, tokens):
     #     words = [self.model.tokenizer.decode(token) for token in tokens]
@@ -60,30 +86,36 @@ class Planner:
 
     def inference_on_dataset(self, test_loader):
         self.model.eval()
-        true_predictions = 0
-
-        total_predictions = 0
+        correct = 0
+        total = 0
 
         with torch.no_grad():
+            test_loss = 0.0
             for i, batch in tqdm(enumerate(test_loader)):
-                
-                states, actions, returns, timesteps, labels = process_batch(batch,self.device)
+                states, actions, returns, timesteps, labels = process_batch(batch,self.batch_size,self.device)
                 logits = self.model(states, actions, returns, timesteps, labels)
-                logits = logits.permute(0, 2, 1)  # 调整形状为 (batch_size, num_classes, sequence_length)
 
+                predicted = torch.argmax(logits, dim=-1)
+                correct += (predicted == labels).sum().item()
+                total += labels.size(0)
+
+                logits = logits.permute(0, 2, 1)  # 调整形状为 (batch_size, num_classes, sequence_length)
                 labels = labels.squeeze(-1)  # 形状变为 (8,) 真实标签
+
+                loss = self.loss_fcn(logits, labels)
+                test_loss += loss.item()
+
+                self.boardwriter.add_scalar('Loss/Test', test_loss / len(test_loader),1)
                 predicted_action_indices = torch.argmax(logits, dim=-1)  # 形状为 (1, 8)
                 predicted_actions = [index_to_label[idx.item()] for idx in predicted_action_indices[0]]
 
                 actions_labels  = [index_to_label[idx.item()] for idx in labels[0]]
                 print('predicted:',predicted_actions, 'label:',actions_labels)
 
-                total_predictions +=1
+        accuracy = correct / total
+        self.boardwriter.add_scalar('Epoch Accuracy/Test', accuracy, 1)
 
-                if predicted_actions[-1] == actions_labels[-1]:
-                    true_predictions +=1
-
-        print("acc = {}%".format(true_predictions/total_predictions *100))
+        print("acc = {}%".format(accuracy))
 
 
     def plan(self,prompt,ts):

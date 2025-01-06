@@ -160,14 +160,14 @@ class Trainer:
             with torch.no_grad():
                 val_loss = 0.0
                 for i, batch in tqdm(enumerate(self.val_loader)):
-                    states, actions, returns, timesteps, labels = process_batch(batch,self.device)
+                    states, actions, returns, timesteps, labels = process_batch(batch,self.batch_size,self.device)
                     logits = self.model(states, actions, returns, timesteps, labels)
 
                     predicted = torch.argmax(logits, dim=-1)
                     correct += (predicted == labels).sum().item()
                     total += labels.size(0)
-                    logits = logits.permute(0, 2, 1)  # 调整形状为 (batch_size, num_classes, sequence_length)
 
+                    logits = logits.permute(0, 2, 1)  # 调整形状为 (batch_size, num_classes, sequence_length)
                     labels = labels.squeeze(-1)  # 形状变为 (8,) 真实标签
 
                     loss = self.loss_fcn(logits, labels)

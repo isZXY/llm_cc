@@ -7,6 +7,7 @@ from pretrained_model import PretrainedLanguageModel
 from peft import get_peft_model, LoraConfig
 from token_config import TokenConfig
 import numpy as np
+from collections import deque
 
 
 class _CategoryProjection(nn.Module):
@@ -144,6 +145,13 @@ class Model(nn.Module):
 
         # generation max length
         self.generation_max_length = 50
+
+        
+        # the following are used for evaluation
+        self.dt_win_length = 8
+        self.states_dq = deque([torch.zeros((1, 0, self.plm_embed_size), device=device)], maxlen=self.dt_win_length)
+        self.returns_dq = deque([torch.zeros((1, 0, self.plm_embed_size), device=device)], maxlen=self.dt_win_length)
+        self.actions_dq = deque([torch.zeros((1, 0, self.plm_embed_size), device=device)], maxlen=self.dt_win_length)
         
     def __set_peft_model(self, rank):
         # 定义 LoRA 的配置
@@ -329,6 +337,71 @@ class Model(nn.Module):
     #         # In inference mode, return the generated sequence
     #         return algo_token_id, generated_sequence
     
+
+    def sample(self, state, target_return, timestep, **kwargs):
+        """
+        Sample action function, used for evaluation/testing.
+        """
+        # Step 1: stack previous state, action, return features in the dequeue
+        prev_stacked_inputs = []
+        for i in range(len(self.states_dq)):
+            prev_return_embeddings = self.returns_dq[i]
+            prev_state_embeddings = self.states_dq[i]
+            prev_action_embeddings = self.actions_dq[i]
+            prev_stacked_inputs.append(torch.cat((prev_return_embeddings, prev_state_embeddings, prev_action_embeddings), dim=1))
+        prev_stacked_inputs = torch.cat(prev_stacked_inputs, dim=1)
+
+        # Step 2: process target return and timesteps
+        target_return = torch.as_tensor(target_return, dtype=torch.float32, device=self.device).reshape(1, 1, 1)
+        timestep = torch.as_tensor(timestep, dtype=torch.int32, device=self.device).reshape(1, 1)
+
+        return_embeddings = self.embed_return(target_return)
+        time_embeddings = self.embed_timestep(timestep)
+
+        return_embeddings = return_embeddings + time_embeddings
+
+        # Step 4: process state
+        state = state.to(self.device)
+        states_embedding_list = self.state_embedding_layer(state)
+
+        state_embeddings = torch.cat(states_embedding_list, dim=1)
+        # Step 5: stack return, stage and previous embeddings
+        stacked_inputs = torch.cat((return_embeddings, state_embeddings), dim=1)  # mind the order
+        stacked_inputs = torch.cat((prev_stacked_inputs, stacked_inputs), dim=1)  # mind the order
+        stacked_inputs = stacked_inputs[:, -self.plm_embed_size:, :]  # truncate sequence length (should not exceed plm embed size)
+        stacked_inputs_ln = self.embed_ln(stacked_inputs)  # layer normalization
+
+        # 1 if can be attended to, 0 if not
+        attention_mask = torch.ones((stacked_inputs_ln.shape[0], stacked_inputs_ln.shape[1]), dtype=torch.long, device=self.device)
+
+        transformer_outputs = self.plm(
+            inputs_embeds=stacked_inputs_ln,
+            attention_mask=attention_mask,
+            output_hidden_states=True,
+            stop_layer_idx=self.which_layer,
+        )
+        logits = transformer_outputs['last_hidden_state']
+        if self.residual:
+            logits = logits + stacked_inputs_ln  # residual add
+
+        # Step 6: predict the bitrate for next chunk
+        logits_used = logits[:, -1:]
+        action_pred = self.action_head(logits_used)
+        action_pred = action_pred.reshape(-1)
+        bitrate, _ = self._sample(action_pred)
+
+        # compute action embeddings 
+        action_tensor = torch.zeros(1, 1, 1, dtype=torch.float32, device=self.device)
+        action_tensor[..., 0] = (bitrate + 1) / self.bitrate_levels
+        action_embeddings = self.embed_action(action_tensor) + time_embeddings
+        
+        # update deques
+        self.returns_dq.append(return_embeddings)
+        self.states_dq.append(state_embeddings) 
+        self.actions_dq.append(action_embeddings)
+
+        return bitrate
+
 
     def get_logits(self,last_hidden_state):
         logits = self.output_projection(last_hidden_state)

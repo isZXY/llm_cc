@@ -36,7 +36,6 @@ def Plan_precedure(planner):
 if __name__ == "__main__":
     os.chdir('/data3/wuduo/xuanyu/llmcc/swap')
 
-
     # reset swap folder files
     folder_path = '/data3/wuduo/xuanyu/llmcc/swap'
 
@@ -51,7 +50,7 @@ if __name__ == "__main__":
             print(f"Error deleting {file_path}: {e}")
 
             
-    device = torch.device("cuda:6")
+    device = torch.device("cuda:4")
     plm_path = "../llama-7b"
 
     model = Model(plm_path, device)
@@ -59,7 +58,7 @@ if __name__ == "__main__":
      # 3. Set train parameters··
     checkpoint_save_path = "../checkpoints"
 
-    planner = Planner(model, checkpoint_save_path, device)
+    planner = Planner(model, checkpoint_save_path,1, device)
 
     print("start listening...")
     Plan_precedure(planner)

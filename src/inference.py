@@ -7,6 +7,8 @@ from llmcc_model import Model
 from planner import Planner
 
 from dataset_pool import _DatasetPool
+from torch.utils.tensorboard import SummaryWriter
+
 
 
 if __name__ == "__main__":
@@ -32,7 +34,8 @@ if __name__ == "__main__":
     
 
 
+
     # set Planner and plan
-    planner = Planner(model, checkpoint_save_path,device)
+    planner = Planner(model, checkpoint_save_path,batch_size,device)
 
     planner.inference_on_dataset(test_loader)

@@ -18,7 +18,7 @@ if __name__ == "__main__":
     os.chdir('/data3/wuduo/xuanyu/llmcc/src')
 
     # 0. set device, model path,init Tensorboard
-    device = torch.device("cuda:7")
+    device = torch.device("cpu")
    # device = torch.device("cpu")
     plm_path = "../llama-7b"
 
