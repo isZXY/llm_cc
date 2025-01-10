@@ -36,9 +36,6 @@ def process_batch(batch, batch_size,device='cpu'):
     # states = torch.cat(states, dim=0).unsqueeze(1).float().to(device)  # (16,8,5,5)
     states = torch.stack(states, dim=1).float().to(device)
 
-    
-
-    
     # actions = [label_to_index[action[0]] for action in actions]  # 转换为索引  ->tensor形状(16,8,1)
     # actions = torch.tensor(actions, dtype=torch.long, device=device).unsqueeze(0)
     # actions = actions.unsqueeze(-1).to(device)  

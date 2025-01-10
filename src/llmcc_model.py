@@ -8,7 +8,7 @@ from peft import get_peft_model, LoraConfig
 from token_config import TokenConfig
 import numpy as np
 from collections import deque
-
+import random
 
 class _CategoryProjection(nn.Module):
     def __init__(self, hidden_size, num_classes,device):
@@ -253,8 +253,7 @@ class Model(nn.Module):
                 # action_pred = self.action_head(logits_used)
 
                 # return action_pred
-                
-            
+                     
 
     # def first_forward(self, batch_prompt, batch_ts):
     #     '''
@@ -338,7 +337,7 @@ class Model(nn.Module):
     #         return algo_token_id, generated_sequence
     
 
-    def sample(self, state, target_return, timestep, **kwargs):
+    def sample(self, state, target_return, timestep):
         """
         Sample action function, used for evaluation/testing.
         """
@@ -355,12 +354,14 @@ class Model(nn.Module):
         target_return = torch.as_tensor(target_return, dtype=torch.float32, device=self.device).reshape(1, 1, 1)
         timestep = torch.as_tensor(timestep, dtype=torch.int32, device=self.device).reshape(1, 1)
 
-        return_embeddings = self.embed_return(target_return)
-        time_embeddings = self.embed_timestep(timestep)
+
+        return_embeddings = self.return_embedding(target_return)
+        time_embeddings = self.time_embedding(timestep)
 
         return_embeddings = return_embeddings + time_embeddings
 
         # Step 4: process state
+        state = state.unsqueeze(dim=1)
         state = state.to(self.device)
         states_embedding_list = self.state_embedding_layer(state)
 
@@ -370,38 +371,45 @@ class Model(nn.Module):
         stacked_inputs = torch.cat((prev_stacked_inputs, stacked_inputs), dim=1)  # mind the order
         stacked_inputs = stacked_inputs[:, -self.plm_embed_size:, :]  # truncate sequence length (should not exceed plm embed size)
         stacked_inputs_ln = self.embed_ln(stacked_inputs)  # layer normalization
-
+        
+        attention_mask=None
         # 1 if can be attended to, 0 if not
-        attention_mask = torch.ones((stacked_inputs_ln.shape[0], stacked_inputs_ln.shape[1]), dtype=torch.long, device=self.device)
+        if attention_mask is None:
+        # 1 if can be attended to, 0 if not
+            attention_mask = torch.ones((stacked_inputs_ln.shape[0], stacked_inputs_ln.shape[1]), dtype=torch.long, device=self.device)
 
-        transformer_outputs = self.plm(
+        last_hidden_state = self.llm_model(
             inputs_embeds=stacked_inputs_ln,
             attention_mask=attention_mask,
             output_hidden_states=True,
-            stop_layer_idx=self.which_layer,
         )
-        logits = transformer_outputs['last_hidden_state']
-        if self.residual:
-            logits = logits + stacked_inputs_ln  # residual add
 
-        # Step 6: predict the bitrate for next chunk
+        logits = last_hidden_state['last_hidden_state']
+
+        # Step 6: predict the algo for next interval
         logits_used = logits[:, -1:]
         action_pred = self.action_head(logits_used)
-        action_pred = action_pred.reshape(-1)
-        bitrate, _ = self._sample(action_pred)
+        # action_pred = action_pred.reshape(-1)
+        # bitrate, _ = self._sample(action_pred)
 
+        predicted = torch.argmax(action_pred, dim=-1)
         # compute action embeddings 
         action_tensor = torch.zeros(1, 1, 1, dtype=torch.float32, device=self.device)
-        action_tensor[..., 0] = (bitrate + 1) / self.bitrate_levels
-        action_embeddings = self.embed_action(action_tensor) + time_embeddings
+        action_tensor[..., 0] = predicted
+        action_embeddings = self.action_embedding(action_tensor) + time_embeddings
         
         # update deques
         self.returns_dq.append(return_embeddings)
         self.states_dq.append(state_embeddings) 
         self.actions_dq.append(action_embeddings)
 
-        return bitrate
+        return action_pred
 
+    # def _sample(self, logits):
+    #     pi = F.softmax(logits, 0).cpu().numpy()
+    #     idx = random.choices(np.arange(pi.size), pi)[0]
+    #     lgprob = np.log(pi[idx])
+    #     return idx, lgprob
 
     def get_logits(self,last_hidden_state):
         logits = self.output_projection(last_hidden_state)

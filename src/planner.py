@@ -93,6 +93,10 @@ class Planner:
             test_loss = 0.0
             for i, batch in tqdm(enumerate(test_loader)):
                 states, actions, returns, timesteps, labels = process_batch(batch,self.batch_size,self.device)
+
+                # 这里喂数据的逻辑是有一些问题的，要按照inference的逻辑来喂
+                # 单次应该给一个state，一个target return 和timestep 让大模型推理出一个actions
+                
                 logits = self.model(states, actions, returns, timesteps, labels)
 
                 predicted = torch.argmax(logits, dim=-1)
@@ -117,6 +121,45 @@ class Planner:
 
         print("acc = {}%".format(accuracy))
 
+
+    def simu_real_env_on_dataset(self, test_loader):
+        self.model.eval()
+        correct = 0
+        total = 0
+
+        with torch.no_grad():
+            test_loss = 0.0
+            for i, batch in tqdm(enumerate(test_loader)):
+                states, actions, returns, timesteps, labels = process_batch(batch,self.batch_size,self.device)
+
+                # 这里喂数据的逻辑是有一些问题的，要按照inference的逻辑来喂
+                # 单次应该给一个state，一个target return 和timestep 让大模型推理出一个actions
+                # self, state, target_return, timestep, **kwargs
+                # target_return = exp_dataset_info.max_return * args.target_return_scale
+                target_return = 1
+                for i in range(states.shape[1]):
+                    action_pred = self.model.sample(states[:,i,:,:],target_return,timesteps[:,i,:])
+                    
+                    predicted = torch.argmax(action_pred, dim=-1)
+                    correct += (predicted == labels[:,i,:]).sum().item()
+                    total += labels[:,i,:].size(0)
+
+                    logits = action_pred.permute(0, 2, 1)  # 调整形状为 (batch_size, num_classes, sequence_length)
+
+                    # loss = self.loss_fcn(logits, labels)
+                    # test_loss += loss.item()
+
+                    # self.boardwriter.add_scalar('Loss/Test', test_loss / len(test_loader),1)
+                    # predicted_action_indices = torch.argmax(logits, dim=-1)  # 形状为 (1, 8)
+                    # predicted_actions = [index_to_label[idx.item()] for idx in predicted_action_indices[0]]
+
+                    # actions_labels  = [index_to_label[idx.item()] for idx in labels[0]]
+                    print('predicted:',index_to_label[predicted.item()], 'label:',index_to_label[labels[:,i,:].item()])
+
+            accuracy = correct / total
+            self.boardwriter.add_scalar('Epoch Accuracy/Test', accuracy, 1)
+
+            print("acc = {}%".format(accuracy))
 
     def plan(self,prompt,ts):
         '''

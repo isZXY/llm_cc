@@ -18,7 +18,7 @@ if __name__ == "__main__":
     os.chdir('/data3/wuduo/xuanyu/llmcc/src')
 
     # 0. set device, model path, init Tensorboard
-    device = torch.device("cuda:3")
+    device = torch.device("cpu")
     plm_path = "../llama-7b"
 
     batch_size = 1
@@ -38,4 +38,6 @@ if __name__ == "__main__":
     # set Planner and plan
     planner = Planner(model, checkpoint_save_path,batch_size,device)
 
-    planner.inference_on_dataset(test_loader)
+    # planner.inference_on_dataset(test_loader)
+
+    planner.simu_real_env_on_dataset(test_loader)
