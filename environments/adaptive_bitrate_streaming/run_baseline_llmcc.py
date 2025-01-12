@@ -14,8 +14,9 @@ import baseline_special.a3c as a3c
 import baseline_special.env as env
 from numba import jit
 from datetime import datetime
-
+import torch
 import sys
+
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
 
@@ -243,19 +244,16 @@ def get_algo_selection():
     return algorithm
 
 
-def put_network_data(prompt,ts):
-    data = {
-        'prompt': prompt,
-        'ts': torch.tensor(ts).tolist() 
-    }
-    with open('/data3/wuduo/xuanyu/llmcc/swap/network_data.json', 'w') as ff:
-        json.dump(data, ff)
+def put_network_data(state,timestep):
+    tensor_dict = {'state': state, 'timestep': timestep}
+
+    filename = '/data3/wuduo/xuanyu/llmcc/swap/network_data.pt'
+    torch.save(tensor_dict, filename)
 
     return get_algo_selection()
 
 
 def run(args):
-
     tensor_manager = TensorManager()
 
     # assert model
@@ -270,12 +268,17 @@ def run(args):
     
     if args.model in  ['genet', 'udr_1', 'udr_2', 'udr_3', 'udr_real']:
         model = PENSIEVE
+        sel_model = args.model
     elif args.model == 'mpc':
         model = MPC
+        sel_model = args.model
     elif args.model == 'bba':
         model = BBA
+        sel_model = args.model
     else:
         model = MIXED
+        sel_model = args.model
+
 
     trace_dir = cfg.trace_dirs[args.test_trace]
     video_size_dir = cfg.video_size_dirs[args.video]
@@ -288,7 +291,6 @@ def run(args):
     if trace_num == len(all_file_names):
         args.fixed_order = True
 
-    # if args.fixed_order is activated, the environment will start from trace_idx=0, iterate over all test traces
     # until trace_num traces have been tested.
     # otherwise, the test traces will selected randomly.
     net_env = env.Environment(all_cooked_time=all_cooked_time, all_cooked_bw=all_cooked_bw, all_file_names=all_file_names, all_mahimahi_ptrs=all_mahimahi_ptrs,
@@ -301,7 +303,7 @@ def run(args):
     result_path = os.path.join(results_dir, 'result_sim_abr_{}.csv'.format(all_file_names[net_env.trace_idx]))
     result_file = open(result_path, 'w',newline = '')
     csv_writer = csv.writer(result_file)
-    csv_writer.writerow(['time_stamp', 'bit_rate', 'buffer_size', 'rebuffer_time', 'chunk_size', 'download_time', 'smoothness', 'model', 'reward'])
+    csv_writer.writerow(['time_stamp', 'bit_rate', 'buffer_size', 'rebuffer_time', 'chunk_size', 'download_time', 'smoothness', 'model', 'reward','bw_change','bandwidth_utilization','bitrate_smoothness','rebuf_time_ratio','next_video_chunk_sizes','video_chunk_remain'])
 
     trace_indices = [net_env.trace_idx]
         
@@ -310,33 +312,32 @@ def run(args):
     random.seed(args.seed)
 
     with tf.Session() as sess:
-        # Set Pensieve
-        model_path = cfg.baseline_model_paths['genet']
-        actor = a3c.ActorNetwork(sess, state_dim=[S_INFO ,S_LEN] ,action_dim=A_DIM , bitrate_dim=BITRATE_LEVELS)
-        sess.run(tf.global_variables_initializer())
-        saver = tf.train.Saver()  # save neural net parameters
-        saver.restore(sess, model_path)  # restore neural net parameters
-        print("Testing model restored.")
-            
-        # Set MPC
-        combo_dict = {'0': calculate_jump_action_combo(0),
+        if model == PENSIEVE:
+            model_path = cfg.baseline_model_paths[args.model]
+            actor = a3c.ActorNetwork(sess, state_dim=[S_INFO ,S_LEN] ,action_dim=A_DIM , bitrate_dim=BITRATE_LEVELS)
+            sess.run(tf.global_variables_initializer())
+            saver = tf.train.Saver()  # save neural net parameters
+            saver.restore(sess, model_path)  # restore neural net parameters
+            print("Testing model restored.")
+        elif model == MPC:
+            combo_dict = {'0': calculate_jump_action_combo(0),
                           '1': calculate_jump_action_combo(1),
                           '2': calculate_jump_action_combo(2),
                           '3': calculate_jump_action_combo(3),
                           '4': calculate_jump_action_combo(4),
                           '5': calculate_jump_action_combo(5)}
-        size_video_array =[]
-        for bitrate in range(BITRATE_LEVELS):
-            video_size = []
-            with open(video_size_dir + 'video_size_' + str(bitrate)) as f:
-                for line in f:
-                    video_size.append( int( line.split()[0] ) )
-            size_video_array.append(video_size)
-        size_video_array = np.array(np.squeeze(size_video_array))
-        assert len(VIDEO_BIT_RATE) == BITRATE_LEVELS
-        video_bit_rate = np.array(VIDEO_BIT_RATE)
-        past_errors = []
-        past_bandwidth_ests = []
+            size_video_array =[]
+            for bitrate in range(BITRATE_LEVELS):
+                video_size = []
+                with open(video_size_dir + 'video_size_' + str(bitrate)) as f:
+                    for line in f:
+                        video_size.append( int( line.split()[0] ) )
+                size_video_array.append(video_size)
+            size_video_array = np.array(np.squeeze(size_video_array))
+            assert len(VIDEO_BIT_RATE) == BITRATE_LEVELS
+            video_bit_rate = np.array(VIDEO_BIT_RATE)
+            past_errors = []
+            past_bandwidth_ests = []
 
         time_stamp = 0
         last_bit_rate = DEFAULT_QUALITY
@@ -347,36 +348,62 @@ def run(args):
 
 
 
-        run_count = 0
-        sel_model = 'genet'
+
+        # 切换使用变量
+        chunk_counter = -1
+        timestep = 0
+        remaining_stable_chunks = 1  # 当前算法剩余稳定的chunk数
+
         while True:  # serve video forever
-
-            run_count +=1
-            algorithm = sel_model
-            if run_count > 30 and run_count % 10 ==0:
-                try:
-                    current_tensor = tensor_manager.get_tensor()
-                    algorithm = put_network_data(standard_prompt_filled(),current_tensor)
-                except ValueError as e:
-                    print(e)
             
-            if algorithm != sel_model:
-                sel_model = algorithm
-
+            chunk_counter +=1
+            remaining_stable_chunks -=1
+            # 切换策略！
+            if chunk_counter % 5 == 0 and remaining_stable_chunks >= 0:
+                sel_model = random.choice(['genet', 'udr_1', 'udr_2', 'udr_3', 'udr_real', 'mpc', 'bba'])
+                remaining_stable_chunks = random.randint(2, 5) * 5  # 每次切换后的稳定期长度，随机选择 3 到 5 次
+                
                 if sel_model in  ['genet', 'udr_1', 'udr_2', 'udr_3', 'udr_real']:
                     model = PENSIEVE
                     model_path = cfg.baseline_model_paths[sel_model]
                     saver.restore(sess, model_path)  # restore neural net parameters
                 elif sel_model == 'mpc':
                     model = MPC
+
+                    combo_dict = {'0': calculate_jump_action_combo(0),
+                                '1': calculate_jump_action_combo(1),
+                                '2': calculate_jump_action_combo(2),
+                                '3': calculate_jump_action_combo(3),
+                                '4': calculate_jump_action_combo(4),
+                                '5': calculate_jump_action_combo(5)}
+                    size_video_array =[]
+                    for bitrate in range(BITRATE_LEVELS):
+                        video_size = []
+                        with open(video_size_dir + 'video_size_' + str(bitrate)) as f:
+                            for line in f:
+                                video_size.append( int( line.split()[0] ) )
+                        size_video_array.append(video_size)
+                    size_video_array = np.array(np.squeeze(size_video_array))
+                    assert len(VIDEO_BIT_RATE) == BITRATE_LEVELS
+                    video_bit_rate = np.array(VIDEO_BIT_RATE)
+                    past_errors = []
+                    past_bandwidth_ests = []
+
                 elif sel_model == 'bba':
                     model = BBA
+                else:
+                    model = MIXED
+
+                
+                # print("chunk counter {} change for {}".format(chunk_counter,sel_model))
                 
 
             delay, sleep_time, buffer_size, rebuf, \
             video_chunk_size, next_video_chunk_sizes, \
-            end_of_video, video_chunk_remain = net_env.get_video_chunk(bit_rate)
+            end_of_video, video_chunk_remain, bw_change, \
+            bandwidth_utilization,bitrate_smoothness,rebuf_time_ratio = net_env.get_video_chunk(bit_rate)
 
+            timestep +=1
             time_stamp += delay  # in ms
             time_stamp += sleep_time  # in ms
 
@@ -400,17 +427,31 @@ def run(args):
                      delay,
                      smoothness,
                      sel_model,
-                     reward])
-            
-            new_data = [time_stamp / M_IN_K,
-                     VIDEO_BIT_RATE[bit_rate],
-                     buffer_size,
-                     rebuf,
-                     video_chunk_size,
-                     delay,
-                     reward]
+                     reward,
+                     bw_change,
+                     bandwidth_utilization,
+                     bitrate_smoothness,
+                     rebuf_time_ratio,
+                     next_video_chunk_sizes,
+                     video_chunk_remain
+                     ])
+            # :TODO 设置通信的频次
+            state_tensor = state[0:4,:]
+            timestep_tensor = timestep
 
-            tensor_manager.add_data(new_data)
+            # TODO 
+            if state_tensor.shape != (1, 5, 5):
+                raise ValueError(f"state_tensor 的形状不符合预期，当前形状是 {state_tensor.shape}, 期望形状是 (1, 5, 5)")
+    
+            if timestep_tensor.shape != (1,):
+                raise ValueError(f"timestep_tensor 的形状不符合预期，当前形状是 {timestep_tensor.shape}, 期望形状是 (1,)")
+            
+            put_network_data(state_tensor,timestep_tensor)
+
+            # tensor_manager.add_data(new_data)
+
+            # TODO Done
+
             # dequeue history record
             state = np.roll(state, -1, axis=1)
 
@@ -448,10 +489,10 @@ def run(args):
 
                 csv_writer = csv.writer(result_file)
 
-                csv_writer.writerow(['time_stamp', 'bit_rate', 'buffer_size', 'rebuffer_time', 'chunk_size', 'download_time', 'smoothness', 'model', 'reward'])
+                csv_writer.writerow(['time_stamp', 'bit_rate', 'buffer_size', 'rebuffer_time', 'chunk_size', 'download_time', 'smoothness', 'model', 'reward','bw_change','bandwidth_utilization','bitrate_smoothness','rebuf_time_ratio','next_video_chunk_sizes','video_chunk_remain'])
 
                 trace_indices.append(net_env.trace_idx)
-
+                timestep=0
         result_files = os.listdir(results_dir)
 
         reward = calc_mean_reward(result_files, results_dir, str='', skip_first_reward=True)

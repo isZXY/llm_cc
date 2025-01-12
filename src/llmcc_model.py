@@ -337,7 +337,7 @@ class Model(nn.Module):
     #         return algo_token_id, generated_sequence
     
 
-    def sample(self, state, target_return, timestep):
+    def sample(self, state, target_return,timestep):
         """
         Sample action function, used for evaluation/testing.
         """
@@ -352,6 +352,8 @@ class Model(nn.Module):
 
         # Step 2: process target return and timesteps
         target_return = torch.as_tensor(target_return, dtype=torch.float32, device=self.device).reshape(1, 1, 1)
+
+        timestep=0
         timestep = torch.as_tensor(timestep, dtype=torch.int32, device=self.device).reshape(1, 1)
 
 

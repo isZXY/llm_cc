@@ -21,7 +21,7 @@ class TensorManager:
             self.data_tensor = torch.cat((self.data_tensor, new_data_tensor), dim=0)
 
     def get_tensor(self):
-        """返回当前 tensor，如果没有满 30 行则抛出错误。"""
+        """返回当前 tensor,如果没有满 30 行则抛出错误。"""
         if self.data_tensor.shape[0] < self.max_rows:
             raise ValueError(f"当前 tensor 只有 {self.data_tensor.shape[0]} 行，未满 {self.max_rows} 行。")
         return self.data_tensor

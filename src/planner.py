@@ -161,17 +161,17 @@ class Planner:
 
             print("acc = {}%".format(accuracy))
 
-    def plan(self,prompt,ts):
+    def plan(self,state_data,timesteps):
         '''
         prompt: need to be a 1-dim tuple
         ts: need to be a tensor in (1,30,7), 30 is alternative
         '''
         self.model.eval()
         predictions = []
-
+        
+        target_return = 1
         with torch.no_grad():
-            algo_token_id, generated_sequence = self.model(prompt, ts)
-
-            predictions.append(self.tokens_to_text(generated_sequence))
-            algo_token_id = self.tokens_to_text([algo_token_id])
-            return algo_token_id, predictions
+            # state_data should be a shape of [1,5,5]
+            action_pred = self.model.sample(state_data,target_return,timesteps)
+            predicted = torch.argmax(action_pred, dim=-1)
+            return predicted
