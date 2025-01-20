@@ -19,8 +19,8 @@ def get_ticks(num, cnt):
         return 1
     return round(length / cnt)
 
-dir_pre = '/data3/wuduo/xuanyu/llmcc/environments/adaptive_bitrate_streaming/artifacts_demo/results_start_timestamp_initialized/fcc-test_video1/trace_num_100_fixed_True'
-output_dir = '/data3/wuduo/xuanyu/llmcc/plots_code/plots/demo_timestamp_initialized'
+dir_pre = '/data3/wuduo/xuanyu/llmcc/environments/adaptive_bitrate_streaming/artifacts_llmcc_OK/results/fcc-test_video1/trace_num_100_fixed_True'
+output_dir = '/data3/wuduo/xuanyu/llmcc/plots_code/plots/llmcc'
 
 # 如果输出文件夹不存在，则创建
 if not os.path.exists(output_dir):
@@ -54,15 +54,15 @@ def get_data(model):
     now = sorted(now, key=lambda x: x[3])
     data.append(now)
 
-# get_data('bba')
+get_data('bba')
 get_data('genet')
-# get_data('mpc')
-# get_data('udr_1')
-# get_data('udr_2')
-# get_data('udr_3')
+get_data('mpc')
+get_data('udr_1')
+get_data('udr_2')
+get_data('udr_3')
 # get_data('mixed_high_freq')
 # get_data('mixed_low_freq')
-# get_data('llmcc')
+get_data('llmcc')
 
 # 根据文件编号保存图像
 for i in range(100):

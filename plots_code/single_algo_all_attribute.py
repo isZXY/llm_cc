@@ -81,9 +81,9 @@ def paint(filename, outputfile, title):
 
 # plt.style.use('seaborn-white')
 
-dir = '/data3/wuduo/xuanyu/llmcc/environments/adaptive_bitrate_streaming/artifacts/results_start_timestamp_initialized/fcc-test_video1/trace_num_100_fixed_True/llmcc'
+dir = '/data3/wuduo/xuanyu/llmcc/environments/adaptive_bitrate_streaming/artifacts_llmcc_OK/results_start_timestamp_initialized/fcc-test_video1/trace_num_100_fixed_True/llmcc'
 
-outputdir = './plots/llmcc'
+outputdir = '/data3/wuduo/xuanyu/llmcc/plots_code/plots/single_algo_all_attribute/llmcc'
 
 for root, dirs, files in os.walk(dir):
     for file in files:

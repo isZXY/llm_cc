@@ -224,7 +224,7 @@ def standard_prompt_filled():
     return prompt
 
 def get_algo_selection():
-    
+
     path = '/data3/wuduo/xuanyu/llmcc/swap/algo_selection_data.json'
     
     # 循环等待文件存在
@@ -343,6 +343,7 @@ def run(args):
         last_bit_rate = DEFAULT_QUALITY
         bit_rate = DEFAULT_QUALITY
         state, action = np.zeros((S_INFO, S_LEN), dtype=np.float32), 1
+        # pdb.set_trace()
         test_trace_count = 0
         all_rewards  = []
 
@@ -352,16 +353,30 @@ def run(args):
         # 切换使用变量
         chunk_counter = -1
         timestep = 0
-        remaining_stable_chunks = 1  # 当前算法剩余稳定的chunk数
 
         while True:  # serve video forever
-            
-            chunk_counter +=1
-            remaining_stable_chunks -=1
-            # 切换策略！
-            if chunk_counter % 5 == 0 and remaining_stable_chunks >= 0:
-                sel_model = random.choice(['genet', 'udr_1', 'udr_2', 'udr_3', 'udr_real', 'mpc', 'bba'])
-                remaining_stable_chunks = random.randint(2, 5) * 5  # 每次切换后的稳定期长度，随机选择 3 到 5 次
+            chunk_counter += 1            
+
+
+            if timestep % 5 == 0 and timestep != 0: 
+                # 设置通信的频次
+                state_tensor = torch.tensor(state[0:5, 1:])
+                state_tensor = state_tensor.unsqueeze(dim = 0)
+
+
+                
+                timestep_tensor = torch.tensor(timestep % 8).unsqueeze(0)
+                # pdb.set_trace()
+                
+                # TODO 
+                if state_tensor.shape != (1, 5, 5):
+                    raise ValueError(f"state_tensor 的形状不符合预期，当前形状是 {state_tensor.shape}, 期望形状是 (1, 5, 5)")
+        
+                if timestep_tensor.shape != (1,):
+                    raise ValueError(f"timestep_tensor 的形状不符合预期，当前形状是 {timestep_tensor.shape}, 期望形状是 (1,)")
+                
+                sel_model = put_network_data(state_tensor,timestep_tensor)
+
                 
                 if sel_model in  ['genet', 'udr_1', 'udr_2', 'udr_3', 'udr_real']:
                     model = PENSIEVE
@@ -403,7 +418,7 @@ def run(args):
             end_of_video, video_chunk_remain, bw_change, \
             bandwidth_utilization,bitrate_smoothness,rebuf_time_ratio = net_env.get_video_chunk(bit_rate)
 
-            timestep +=1
+            timestep += 1
             time_stamp += delay  # in ms
             time_stamp += sleep_time  # in ms
 
@@ -435,22 +450,7 @@ def run(args):
                      next_video_chunk_sizes,
                      video_chunk_remain
                      ])
-            # :TODO 设置通信的频次
-            state_tensor = state[0:4,:]
-            timestep_tensor = timestep
-
-            # TODO 
-            if state_tensor.shape != (1, 5, 5):
-                raise ValueError(f"state_tensor 的形状不符合预期，当前形状是 {state_tensor.shape}, 期望形状是 (1, 5, 5)")
-    
-            if timestep_tensor.shape != (1,):
-                raise ValueError(f"timestep_tensor 的形状不符合预期，当前形状是 {timestep_tensor.shape}, 期望形状是 (1,)")
             
-            put_network_data(state_tensor,timestep_tensor)
-
-            # tensor_manager.add_data(new_data)
-
-            # TODO Done
 
             # dequeue history record
             state = np.roll(state, -1, axis=1)
@@ -518,7 +518,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # >>> debug <<<
-    args.model = 'mixed'
+    args.model = 'genet'
     args.test_trace = 'fcc-test'
     args.video = 'video1'
     args.test_trace_num = 100

@@ -22,7 +22,7 @@ class Config:
         'video2': _base_dir + 'data/videos/video2_sizes/',
     }
 
-    artifacts_dir = _base_dir + 'artifacts_no_change/'
+    artifacts_dir = _base_dir + 'artifacts_llmcc/'
     results_dir = artifacts_dir + 'results/'
     exp_pools_dir = artifacts_dir + 'exp_pools/'
 

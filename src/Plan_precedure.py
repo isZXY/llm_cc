@@ -7,6 +7,22 @@ from planner import Planner
 import shutil
 
 
+# 定义动作标签到索引的映射
+label_to_index = {
+    "genet": 0,
+    "udr_1": 1,
+    "udr_2": 2,
+    "udr_3": 3,
+    "udr_real": 4,
+    "mpc": 5,
+    "bba": 6
+}
+
+
+# 反向映射（可选）
+index_to_label = {v: k for k, v in label_to_index.items()}
+
+
 def Plan_precedure(planner):
     count =0
     while True:     
@@ -19,15 +35,22 @@ def Plan_precedure(planner):
                 
                 # 提取 Tensor
                 states = tensor_dict['state']
+                # print(states)
                 timestep = tensor_dict['timestep']
+                # print(timestep)
                 
                 algo_predictions = planner.plan(states,timestep)
+
+                algo_predictions_labels = index_to_label[algo_predictions.item()]
+                
+
                 data = {
-                        'algorithm': algo_predictions
-                    }
+                    'algorithm': algo_predictions_labels  # 保存标签字符串
+                }
+
                 print("change selection for reason {}".format(algo_predictions))
                 with open('algo_selection_data.json', 'w') as ff:
-                     json.dump(data, ff)
+                    json.dump(data, ff)
                      
             os.remove('network_data.pt')
 
@@ -53,13 +76,13 @@ if __name__ == "__main__":
             print(f"Error deleting {file_path}: {e}")
 
             
-    device = torch.device("cuda:4")
+    device = torch.device("cpu")
     plm_path = "../llama-7b"
 
     model = Model(plm_path, device)
 
      # 3. Set train parameters··
-    checkpoint_save_path = "../checkpoints"
+    checkpoint_save_path = "/data3/wuduo/xuanyu/llmcc/checkpoints_Jan03_1803/checkpoint-151662-eval-epoch20"
 
     planner = Planner(model, checkpoint_save_path, 1, device)
 

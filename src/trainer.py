@@ -93,8 +93,6 @@ class Trainer:
                 # states, actions, returns, timesteps, labels = process_batch(batch,self.batch_size,self.device)
                 processed_batch = process_batch(batch, self.batch_size, self.device)
 
-
-
                 # 如果处理失败（返回 None），记录当前的批次序号，并跳过该批次
                 if processed_batch is None:
                     print(f"Skipping batch {i} due to error in 'actions'.")
@@ -133,9 +131,6 @@ class Trainer:
                     # 计算梯度范数
                     grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                     self.boardwriter.add_scalar('GradientNorm', grad_norm, self.global_step)
-
-
-
 
                 loss.backward()
                 self.optimizer.step()
