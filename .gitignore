@@ -5,8 +5,7 @@
 /datasets/CC/CC/*.csv
 /datasets/ABR/trace_num_100_fixed_True
 /environments/adaptive_bitrate_streaming/artifacts*
-/datasets/ABR/artifacts_random_trace
-/datasets/ABR/dataset_pool_ABR.pkl
+/datasets/ABR/artifacts_random_trace/*
 /datasets/CC/*.pkl
 /src/*.pkl
 /datasets/*.csv

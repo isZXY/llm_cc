@@ -348,12 +348,14 @@ class Model(nn.Module):
             prev_state_embeddings = self.states_dq[i]
             prev_action_embeddings = self.actions_dq[i]
             prev_stacked_inputs.append(torch.cat((prev_return_embeddings, prev_state_embeddings, prev_action_embeddings), dim=1))
+
+
         prev_stacked_inputs = torch.cat(prev_stacked_inputs, dim=1)
 
         # Step 2: process target return and timesteps
         target_return = torch.as_tensor(target_return, dtype=torch.float32, device=self.device).reshape(1, 1, 1)
 
-        timestep=0
+        # timestep=0
         timestep = torch.as_tensor(timestep, dtype=torch.int32, device=self.device).reshape(1, 1)
 
 
@@ -366,8 +368,8 @@ class Model(nn.Module):
         state = state.unsqueeze(dim=1)
         state = state.to(self.device)
         states_embedding_list = self.state_embedding_layer(state)
-
         state_embeddings = torch.cat(states_embedding_list, dim=1)
+
         # Step 5: stack return, stage and previous embeddings
         stacked_inputs = torch.cat((return_embeddings, state_embeddings), dim=1)  # mind the order
         stacked_inputs = torch.cat((prev_stacked_inputs, stacked_inputs), dim=1)  # mind the order
@@ -400,10 +402,29 @@ class Model(nn.Module):
         action_tensor[..., 0] = predicted
         action_embeddings = self.action_embedding(action_tensor) + time_embeddings
         
+        # # 更新前的内容
+        # states_dq_before = list(self.states_dq)
+        # returns_dq_before = list(self.returns_dq)
+        # actions_dq_before = list(self.actions_dq)
+
+
         # update deques
         self.returns_dq.append(return_embeddings)
         self.states_dq.append(state_embeddings) 
         self.actions_dq.append(action_embeddings)
+
+
+
+        # print('---------------states------------')
+        # print(self.states_dq)
+        # print('---------------states end------------')
+        # print('---------------returns ------------')
+        # print(self.returns_dq)
+        # print('---------------returns end------------')
+        # print('---------------action------------')
+        # print(self.actions_dq)
+        # print('---------------action end------------')
+
 
         return action_pred
 

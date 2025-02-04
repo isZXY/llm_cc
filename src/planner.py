@@ -52,8 +52,8 @@ def process_batch(batch, batch_size,device='cpu'):
 
     labels = actions.clone().to(dtype=torch.int64).to(device)   # 离散动作的标签，用于分类损失
 
-    # returns = torch.tensor(returns, dtype=torch.float32, device=device).reshape(16, -1, 1).to(device) 
-    returns = torch.stack(returns, dim=1).unsqueeze(-1).float().to(device)
+    returns = torch.stack(returns, dim=1).unsqueeze(-1).float().to(device)    # returns = torch.tensor(returns, dtype=torch.float32, device=device).reshape(16, -1, 1).to(device) 
+
     # 时间步处理
 
     # timesteps = torch.tensor(timesteps, dtype=torch.int32, device=device).unsqueeze(0)

@@ -39,7 +39,6 @@ model_mapping = {
     0: 'PENSIEVE',
     1: 'MPC',
     2: 'BBA',
-    3: 'MIXED'
 }
 
 # =========================================================================
@@ -257,7 +256,7 @@ def run(args):
     tensor_manager = TensorManager()
 
     # assert model
-    assert args.model in ['genet', 'udr_1', 'udr_2', 'udr_3', 'udr_real', 'mpc', 'bba','mixed']
+    assert args.model in ['genet', 'udr_1', 'udr_2', 'udr_3', 'udr_real', 'mpc', 'bba']
     print(cfg.trace_dirs.keys())
     print(args.test_trace)
     assert args.test_trace in cfg.trace_dirs.keys()
@@ -493,6 +492,7 @@ def run(args):
 
                 trace_indices.append(net_env.trace_idx)
                 timestep=0
+                
         result_files = os.listdir(results_dir)
 
         reward = calc_mean_reward(result_files, results_dir, str='', skip_first_reward=True)

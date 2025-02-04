@@ -7,7 +7,7 @@ import torch
 import csv
 import math
 
-CSV_HEADER = ['time_stamp', 'bit_rate', 'buffer_size', 'rebuffer_time', 'chunk_size', 'download_time', 'smoothness', 'model', 'reward','bw_change','bandwidth_utilization','bitrate_smoothness','rebuf_time_ratio','next_video_chunk_sizes','video_chunk_remain']
+CSV_HEADER = ['time_stamp', 'bit_rate', 'buffer_size', 'rebuffer_time', 'chunk_size', 'download_time', 'smoothness', 'model', 'reward','bw_change','bandwidth_utilization','bitrate_smoothness','rebuf_time_ratio','next_video_chunk_sizes','video_chunk_remain','timestep']
 
 data = []
 base_dir_withoutchange = "/data3/wuduo/xuanyu/llmcc/datasets/ABR/artifacts_random_trace"
@@ -30,20 +30,23 @@ class _DatasetPool:
         self.states = [] # probed ts组成
         self.actions = [] # 对应选择的label
         self.rewards = []
+        self.timesteps = []
         self.dones = []
 
-    def add(self, state, action, reward, done):
+    def add(self, state, action, reward, timestep,done):
         # self.prompts.append(prompt)
         self.states.append(state)  # sometime state is also called obs (observation)
         self.actions.append(action)
         self.rewards.append(reward)
+        self.timesteps.append(timestep)
         self.dones.append(done)
 
-    def extend(self, states, actions, rewards, dones):
+    def extend(self, states, actions, rewards, timesteps,dones):
         # self.prompts.extend(prompts)
         self.states.extend(states)  # sometime state is also called obs (observation)
         self.actions.extend(actions)
         self.rewards.extend(rewards)
+        self.timesteps.extend(timesteps)
         self.dones.extend(dones)
 
 
@@ -58,32 +61,42 @@ def standard_prompt_filled():
     return prompt
 
 
-def handle_csv_withoutchange(file, model,decision_interval_per_record = 5):
+def handle_csv_withoutchange(file, model, decision_interval_per_record = 5):
     # time_stamp,bit_rate,buffer_size,rebuffer_time,chunk_size,download_time,smoothness,model,reward,bw_change,bandwidth_utilization,bitrate_smoothness,rebuf_time_ratio
     all = pd.read_csv(file)
     
     total_rows = len(all)
     num_segments = math.floor(total_rows / decision_interval_per_record) # 多余的忽略
     
-    # done record
-    dones = [False]* (num_segments-1)
-    dones.append(True)
-    
+
     # action
     actions = [model] * num_segments
-
-
 
     S_INFO = 5
     S_LEN = decision_interval_per_record  # take how many frames in the past
     states = []
     rewards = []
+    timesteps = []
+    dones = []
     # 每5条一个记录，计算出分割的点。
     for i in range(num_segments):
+       
         start_row = i * decision_interval_per_record
         end_row = start_row + decision_interval_per_record  # 结束行索引
         segment = all.iloc[start_row:end_row]  # 切片
         
+        # done record
+        
+
+        # timestep
+        timestep = segment['timestep'].value_counts().idxmax()
+        timesteps.append(timestep)
+        
+        if timestep == 0 or i ==0:
+            dones.append(True)
+        else:
+            dones.append(False)
+
 
         # reward 
         reward_sum = segment['reward'].sum()
@@ -134,7 +147,7 @@ def handle_csv_withoutchange(file, model,decision_interval_per_record = 5):
     
     
 
-    return states,actions,rewards,dones
+    return states,actions,rewards,timesteps,dones
 
 
 def handle_csv_withchange(file,decision_interval_per_record = 5):
@@ -144,25 +157,32 @@ def handle_csv_withchange(file,decision_interval_per_record = 5):
     total_rows = len(all)
     num_segments = math.floor(total_rows / decision_interval_per_record) # 多余的忽略
     
-    # done record
-    dones = [False]* (num_segments-1)
-    dones.append(True)
-    
     # action
     actions = []
-
-
 
     S_INFO = 5
     S_LEN = decision_interval_per_record  # take how many frames in the past
     states = []
     rewards = []
+    timesteps = []
+    dones = []
     # 每5条一个记录，计算出分割的点。
     for i in range(num_segments):
         start_row = i * decision_interval_per_record
         end_row = start_row + decision_interval_per_record  # 结束行索引
         segment = all.iloc[start_row:end_row]  # 切片
         
+
+
+        # done record
+        timestep = segment['timestep'].value_counts().idxmax()
+        timesteps.append(timestep)
+
+
+        if timestep == 0 or i ==0:
+            dones.append(True)
+        else:
+            dones.append(False)
 
         # reward 
         reward_sum = segment['reward'].sum()
@@ -216,7 +236,7 @@ def handle_csv_withchange(file,decision_interval_per_record = 5):
     
     
 
-    return states,actions,rewards,dones
+    return states,actions,rewards,timesteps,dones
 
 
 def cal_maximum_cum_reward(file):
@@ -232,7 +252,7 @@ if __name__ == '__main__':
     # init dataset pool class
     dataset_pool = _DatasetPool()
 
-    # 准备所有的state,action,reward 存储进入数据集
+    # 准备所有的state,action,reward 存储进入数据集 
 
     ## withoutchange的
     for algorithm in algorithm_names: 
@@ -241,8 +261,8 @@ if __name__ == '__main__':
         for file in os.listdir(folder_path):
             if file.endswith(".csv"):  # 筛选出CSV文件
                 file_path = os.path.join(folder_path, file)
-                states, actions, rewards, dones = handle_csv_withoutchange(file_path,algorithm)
-                dataset_pool.extend(states, actions, rewards, dones)
+                states, actions, rewards, timesteps, done = handle_csv_withoutchange(file_path,algorithm)
+                dataset_pool.extend(states, actions, rewards, timesteps, done)
 
     trace_reward_list = []
 
@@ -258,6 +278,9 @@ if __name__ == '__main__':
     percentile_90 = np.percentile(trace_reward_list, 90)
     print(f"The 90th percentile value is: {percentile_90}")
 
+    # 改成整个trace的
+    
+
 
     ## withchange的
     for i in range(1,1001):
@@ -267,8 +290,8 @@ if __name__ == '__main__':
             if file.endswith(".csv"):  # 筛选出CSV文件
                 file_path = os.path.join(folder_path, file)
                 if cal_maximum_cum_reward(file_path) >= percentile_90:
-                    states, actions, rewards, dones = handle_csv_withchange(file_path)
-                    dataset_pool.extend(states, actions, rewards, dones)
+                    states, actions, rewards, timesteps,done = handle_csv_withchange(file_path)
+                    dataset_pool.extend(states, actions, rewards, timesteps,done)
 
     # 组成pair，作为数据对并导出
     dataset_pool_output = '/data3/wuduo/xuanyu/llmcc/datasets/ABR/dataset_pool_ABR.pkl'

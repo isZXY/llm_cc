@@ -46,9 +46,9 @@ def Plan_precedure(planner):
 
                 data = {
                     'algorithm': algo_predictions_labels  # 保存标签字符串
-                }
+                } 
 
-                print("change selection for reason {}".format(algo_predictions))
+                print("change selection @ {}".format(algo_predictions_labels))
                 with open('algo_selection_data.json', 'w') as ff:
                     json.dump(data, ff)
                      
@@ -76,13 +76,13 @@ if __name__ == "__main__":
             print(f"Error deleting {file_path}: {e}")
 
             
-    device = torch.device("cpu")
+    device = torch.device("cuda:3")
     plm_path = "../llama-7b"
 
     model = Model(plm_path, device)
 
      # 3. Set train parameters··
-    checkpoint_save_path = "/data3/wuduo/xuanyu/llmcc/checkpoints_Jan03_1803/checkpoint-151662-eval-epoch20"
+    checkpoint_save_path = "/data3/wuduo/xuanyu/llmcc/checkpoints_Jan31_2302/checkpoint-202216-eval-epoch27"
 
     planner = Planner(model, checkpoint_save_path, 1, device)
 

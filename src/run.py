@@ -18,10 +18,9 @@ if __name__ == "__main__":
     os.chdir('/data3/wuduo/xuanyu/llmcc/src')
 
     # 0. set device, model path,init Tensorboard
-    device = torch.device("cpu")
-   # device = torch.device("cpu")
+    device = torch.device("cuda:2")
+    # device = torch.device("cpu")
     plm_path = "../llama-7b"
-
 
     tz = pytz.timezone('Asia/Shanghai')  # 设置时区为北京时间
     current_time = datetime.now(tz).strftime("%b%d_%H%M")

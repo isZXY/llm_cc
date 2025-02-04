@@ -28,7 +28,6 @@ class _DatasetPool:
         Labels: string, The Best Algos's name. "Best" is evaluated during dataset collection.
     '''
     def __init__(self):
-        
         # self.prompts = [] 
         self.states = [] # probed ts组成
         self.actions = [] # 对应选择的label

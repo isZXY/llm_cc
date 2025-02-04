@@ -254,7 +254,7 @@ def run(args):
     result_path = os.path.join(results_dir, 'result_sim_abr_{}.csv'.format(all_file_names[net_env.trace_idx]))
     result_file = open(result_path, 'w',newline = '')
     csv_writer = csv.writer(result_file)
-    csv_writer.writerow(['time_stamp', 'bit_rate', 'buffer_size', 'rebuffer_time', 'chunk_size', 'download_time', 'smoothness', 'model', 'reward','bw_change','bandwidth_utilization','bitrate_smoothness','rebuf_time_ratio','next_video_chunk_sizes','video_chunk_remain'])
+    csv_writer.writerow(['time_stamp', 'bit_rate', 'buffer_size', 'rebuffer_time', 'chunk_size', 'download_time', 'smoothness', 'model', 'reward','bw_change','bandwidth_utilization','bitrate_smoothness','rebuf_time_ratio','next_video_chunk_sizes','video_chunk_remain','timestep'])
     
 
     trace_indices = [net_env.trace_idx]
@@ -298,6 +298,9 @@ def run(args):
         test_trace_count = 0
         all_rewards  = []
 
+        chunk_counter = -1
+        remaining_stable_chunks = 1  # 当前算法剩余稳定的chunk数
+        timestep = 0
 
 
         # counter = -1
@@ -308,6 +311,16 @@ def run(args):
             #         model = random.choice(['PENSIEVE', 'MPC', 'BBA'])
             #         print("change for {}".format(model))
 
+
+            chunk_counter += 1
+            # if True:
+            #     if counter == 0:
+            #         model = random.choice(['PENSIEVE', 'MPC', 'BBA'])
+            #         print("change for {}".format(model))
+            remaining_stable_chunks -=1
+            # 切换策略！
+            if chunk_counter % 5 == 0:
+                timestep += 1
                     
             delay, sleep_time, buffer_size, rebuf, \
             video_chunk_size, next_video_chunk_sizes, \
@@ -349,7 +362,8 @@ def run(args):
                      bitrate_smoothness,
                      rebuf_time_ratio,
                      next_video_chunk_sizes,
-                     video_chunk_remain
+                     video_chunk_remain,
+                     timestep
                      ])
             
 
@@ -391,9 +405,10 @@ def run(args):
 
                 csv_writer = csv.writer(result_file)
 
-                csv_writer.writerow(['time_stamp', 'bit_rate', 'buffer_size', 'rebuffer_time', 'chunk_size', 'download_time', 'smoothness', 'model', 'reward','bw_change','bandwidth_utilization','bitrate_smoothness','rebuf_time_ratio','next_video_chunk_sizes','video_chunk_remain'])
+                csv_writer.writerow(['time_stamp', 'bit_rate', 'buffer_size', 'rebuffer_time', 'chunk_size', 'download_time', 'smoothness', 'model', 'reward','bw_change','bandwidth_utilization','bitrate_smoothness','rebuf_time_ratio','next_video_chunk_sizes','video_chunk_remain','timestep'])
 
                 trace_indices.append(net_env.trace_idx)
+                timestep = 0
 
         result_files = os.listdir(results_dir)
 
@@ -421,7 +436,7 @@ if __name__ == '__main__':
 
     # 'genet', 'udr_1', 'udr_2', 'udr_3', 'udr_real', 'mpc', 'bba'
     # >>> debug <<<
-    args.model = 'udr_3'
+    args.model = 'bba'
     args.test_trace = 'fcc-test'
     args.video = 'video1'
     args.test_trace_num = 100

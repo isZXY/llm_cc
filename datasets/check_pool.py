@@ -1,4 +1,5 @@
 import pickle
+from collections import Counter
 
 
 class _DatasetPool:
@@ -12,19 +13,30 @@ class _DatasetPool:
         Labels: string, The Best Algos's name. "Best" is evaluated during dataset collection.
     '''
     def __init__(self):
-        self.prompts = []
-        self.probed_ts = []
-        self.labels = []
+        
+        # self.prompts = [] 
+        self.states = [] # probed ts组成
+        self.actions = [] # 对应选择的label
+        self.rewards = []
+        self.timesteps = []
 
-    def add(self, prompts,probed_ts,label):
-        self.prompts.append(prompts)
-        self.probed_ts.append(probed_ts)
-        self.labels.append(label)
+    def add(self, state, action, reward, timestep):
+        # self.prompts.append(prompt)
+        self.states.append(state)  # sometime state is also called obs (observation)
+        self.actions.append(action)
+        self.rewards.append(reward)
+        self.timesteps.append(timestep)
+
+    def extend(self, states, actions, rewards, timestep):
+        # self.prompts.extend(prompts)
+        self.states.extend(states)  # sometime state is also called obs (observation)
+        self.actions.extend(actions)
+        self.rewards.extend(rewards)
+        self.timesteps.extend(timestep)
 
 
     def __len__(self):
-        return len(self.labels)
-
+        return len(self.states)
 
 
 # 替换成你pkl文件的路径
@@ -37,4 +49,6 @@ with open(pkl_file_path, 'rb') as f:
     data = pickle.load(f)
 
 # 输出加载的数据
-print(data)
+
+
+data.stat_distribute()
