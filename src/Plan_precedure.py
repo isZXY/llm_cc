@@ -76,13 +76,13 @@ if __name__ == "__main__":
             print(f"Error deleting {file_path}: {e}")
 
             
-    device = torch.device("cuda:3")
+    device = torch.device("cuda:2")
     plm_path = "../llama-7b"
 
     model = Model(plm_path, device)
 
      # 3. Set train parameters··
-    checkpoint_save_path = "/data3/wuduo/xuanyu/llmcc/checkpoints_Jan31_2302/checkpoint-202216-eval-epoch27"
+    checkpoint_save_path = "/data3/wuduo/xuanyu/llmcc/checkpoints_Feb08_1824/checkpoint-151662-eval-epoch20"
 
     planner = Planner(model, checkpoint_save_path, 1, device)
 

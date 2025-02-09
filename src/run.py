@@ -5,7 +5,7 @@ from datetime import datetime
 import pytz
 
 from dataset_loader import DatasetLoader
-from llmcc_model import Model
+from llmcc_model_updated import Model
 from trainer import Trainer
 
 from dataset_pool import _DatasetPool
@@ -18,7 +18,7 @@ if __name__ == "__main__":
     os.chdir('/data3/wuduo/xuanyu/llmcc/src')
 
     # 0. set device, model path,init Tensorboard
-    device = torch.device("cuda:2")
+    device = torch.device("cuda:4")
     # device = torch.device("cpu")
     plm_path = "../llama-7b"
 
@@ -40,7 +40,7 @@ if __name__ == "__main__":
 
     # 3. Set train parameters
     learning_rate = .01
-    train_epochs = 30
+    train_epochs = 60
     checkpoint_save_path = "../checkpoints_{}".format(current_time)
 
     # set Trainer and train
