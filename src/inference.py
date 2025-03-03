@@ -31,9 +31,6 @@ if __name__ == "__main__":
     model = Model(plm_path, device)
     checkpoint_save_path = "/data3/wuduo/xuanyu/llmcc/checkpoints/checkpoint-36110-eval-epoch4"
     model.load_model(checkpoint_save_path)
-    
-
-
 
     # set Planner and plan
     planner = Planner(model, checkpoint_save_path,batch_size,device)

@@ -25,8 +25,6 @@ label_to_index = {
 index_to_label = {v: k for k, v in label_to_index.items()}
 
 
-
-
 def process_batch(batch, batch_size,device='cpu'):
     """
     Process batch of data.
@@ -143,8 +141,6 @@ class Trainer:
 
             # Validate
             self.model.eval()
-
-
 
             # 验证精度计算
             correct = 0

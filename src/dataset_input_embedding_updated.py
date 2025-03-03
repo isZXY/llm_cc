@@ -59,9 +59,10 @@ class StateEmbedding(nn.Module):
 
     def forward(self, state_ts, time_embeddings):
         dataset_concat_embedding = self.state_embedding(state_ts,time_embeddings)
+
         return dataset_concat_embedding
 
-    def state_embedding(self,state_ts,prompt = None):
+    def state_embedding(self,state_ts,time_embeddings):
         # state: input(1,8,5,5) (batch_size,episode,features,decision_interval)-> (1,8,4096) (1, seq_len, embed_size)
         splits = torch.split(state_ts, 1, dim=2) # 5个(1,8,1,5)
         squeezed_splits = [split.squeeze(dim=2) for split in splits] # 五个　（1，8，5）
@@ -69,11 +70,11 @@ class StateEmbedding(nn.Module):
         states_embedding_list = []
 
 
-        state1 = self.embed_state1(squeezed_splits[0]).to(self.device)
-        state2 = self.embed_state2(squeezed_splits[1]).to(self.device)
-        state3 = self.embed_state3(squeezed_splits[2]).to(self.device)
-        state4 = self.embed_state4(squeezed_splits[3]).to(self.device)
-        state5 = self.embed_state5(squeezed_splits[4]).to(self.device)
+        state1 = self.embed_state1(squeezed_splits[0]).to(self.device) + time_embeddings
+        state2 = self.embed_state2(squeezed_splits[1]).to(self.device) + time_embeddings
+        state3 = self.embed_state3(squeezed_splits[2]).to(self.device) + time_embeddings
+        state4 = self.embed_state4(squeezed_splits[3]).to(self.device) + time_embeddings
+        state5 = self.embed_state5(squeezed_splits[4]).to(self.device) + time_embeddings
 
 
         states_embedding_list.append(state1)
@@ -82,9 +83,8 @@ class StateEmbedding(nn.Module):
         states_embedding_list.append(state4)
         states_embedding_list.append(state5)
 
-
-
         return states_embedding_list
+    
         # ts_embeddings = []
         # for i, state in enumerate(squeezed_splits):
         #     ts_embedding = self.__time_series_embedding(state)
